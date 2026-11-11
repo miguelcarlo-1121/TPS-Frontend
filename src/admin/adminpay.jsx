@@ -15,7 +15,7 @@ const serif = "font-['Inria_Serif',Georgia,serif]";
 
 const API_BASE = "/admin";
 
-/* ---------- Icons (inline SVG) ---------- */
+/* ---------- Icons (inline SVG) ----------- */
 function Icon({ className = "", children }) {
   return (
     <svg
