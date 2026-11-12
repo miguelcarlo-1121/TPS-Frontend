@@ -26,6 +26,14 @@ const NAME_STRIP = /[^\p{L}\s.'’-]/gu;
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 const PH_RE = /^09\d{9}$/;
 const digits11 = (v) => v.replace(/\D/g, "").slice(0, 11);
+const isAbaPayment = (payment) =>
+  payment?.consent_type === "aba" ||
+  payment?.service_id === "aba" ||
+  String(payment?.service_name || "").toLowerCase().replace(/[^a-z0-9]/g, "") === "abatherapy";
+const isPsychotherapyPayment = (payment) =>
+  payment?.consent_type === "psychotherapy" ||
+  payment?.service_id === "psychotherapy" ||
+  String(payment?.service_name || "").toLowerCase().replace(/[^a-z0-9]/g, "").includes("psychotherapy");
 
 const pad = (n) => String(n).padStart(2, "0");
 const todayStr = () => {
@@ -245,9 +253,11 @@ export default function Consent() {
   const hereRef = useRef(window.location.pathname + window.location.search);
 
   const draftKey = pay ? `tf_consent_draft_${pay.id}` : null;
+  const isAba = isAbaPayment(pay);
+  const isPsychotherapy = isPsychotherapyPayment(pay);
 
   // Bawal umalis hangga't hindi pa na-submit ang forms
-  const guard = !!pay && pay.required && pay.approved && !pay.submitted && !done;
+  const guard = !!pay && pay.required && !pay.rejected && pay.approved && !pay.submitted && !done;
 
   // Kunin ang booking + prefill, at ibalik ang draft kung meron
   useEffect(() => {
@@ -258,7 +268,7 @@ export default function Consent() {
         setPay(d.payment);
         setPrefill(d.prefill || null);
         if (!d.payment) return;
-        if (d.payment.service_id === "aba") return;
+        if (isAbaPayment(d.payment)) return;
 
         let draft = null;
         try {
@@ -309,7 +319,7 @@ export default function Consent() {
 
   // I-save ang draft
   useEffect(() => {
-    if (!draftKey || done || pay?.submitted || pay?.service_id === "aba") return;
+    if (!draftKey || done || pay?.submitted || isAbaPayment(pay)) return;
     try {
       sessionStorage.setItem(draftKey, JSON.stringify({ step, checks, intake, dsm, sign, guardian }));
     } catch {
@@ -449,7 +459,7 @@ export default function Consent() {
       }
       update({ consentComplete: true });
       setDone(true);
-      setTimeout(() => navigate("/book/confirmation", { replace: true }), 1200);
+      setTimeout(() => navigate(pay.approved ? "/book/confirmation" : "/book/approval", { replace: true }), 1200);
     } catch (err) {
       if (err.message?.includes("session expired")) return navigate("/signin");
       setServerError(err.message || "Could not submit your consent form. Please try again.");
@@ -466,7 +476,7 @@ export default function Consent() {
     { label: "SERVICE", value: pay?.service_name || "—" },
     {
       label: "PSYCHOLOGIST",
-      value: pay ? (pay.service_id === "psychotherapy" ? pay.psychologist || "—" : "Assigned by the clinic") : "—",
+      value: pay ? (isPsychotherapy ? pay.psychologist || "—" : "Assigned by the clinic") : "—",
     },
     {
       label: "DATE & TIME",
@@ -502,6 +512,15 @@ export default function Consent() {
     );
   } else if (!pay.required) {
     body = <p className="mt-6 text-sm text-[#666]">No consent form is needed for this service. Redirecting…</p>;
+  } else if (pay.rejected) {
+    body = (
+      <div className="mt-6 rounded-xl border border-red-200 bg-red-50 px-4 py-4 text-sm text-red-900">
+        This booking was rejected.{" "}
+        <Link to="/book/approval" className="font-bold text-tf-teal underline">
+          Check approval status
+        </Link>
+      </div>
+    );
   } else if (!pay.approved) {
     body = (
       <div className="mt-6 rounded-xl border border-amber-200 bg-amber-50 px-4 py-4 text-sm text-amber-900">
@@ -517,13 +536,19 @@ export default function Consent() {
         <strong className="font-serif text-base">
           {done ? "Thank you. Your consent form was submitted." : "You already submitted your consent form."}
         </strong>
-        <p className="m-0 mt-1">Your care team can now see it. You may continue to your confirmation.</p>
-        <button type="button" className={`${btnSolid} mt-4`} onClick={() => navigate("/book/confirmation", { replace: true })}>
-          Continue to confirmation
+        <p className="m-0 mt-1">
+          Your care team can now see it. {pay.approved ? "You may continue to your confirmation." : "Check your appointment approval status."}
+        </p>
+        <button
+          type="button"
+          className={`${btnSolid} mt-4`}
+          onClick={() => navigate(pay.approved ? "/book/confirmation" : "/book/approval", { replace: true })}
+        >
+          {pay.approved ? "Continue to confirmation" : "Check approval status"}
         </button>
       </div>
     );
-  } else if (pay.service_id === "aba") {
+  } else if (isAba) {
     body = (
       <AbaConsentForm
         paymentId={pay.id}
@@ -531,7 +556,7 @@ export default function Consent() {
         onComplete={() => {
           update({ consentComplete: true });
           setDone(true);
-          setTimeout(() => navigate("/book/confirmation", { replace: true }), 1200);
+          setTimeout(() => navigate(pay.approved ? "/book/confirmation" : "/book/approval", { replace: true }), 1200);
         }}
       />
     );
@@ -1040,16 +1065,18 @@ export default function Consent() {
                 <h2 className="m-0 mb-1.5 font-serif text-[1.4rem] font-normal text-[#202020]">
                   {!loaded
                     ? "Loading consent form…"
-                    : pay?.service_id === "aba"
+                    : isAba
                       ? "ABA consent form"
                       : "Consent & intake forms"}
                 </h2>
                 <p className="m-0 text-sm text-[#666]">
                   {!loaded
                     ? "Loading your booking details…"
-                    : pay?.service_id === "aba"
-                    ? "Please complete the ABA consent and service agreement now that your appointment has been approved. Your answers are confidential and visible to your care team."
-                    : "Please complete these forms now that your appointment has been approved. Your answers are confidential and only visible to your psychologist."}
+                    : isAba
+                    ? "Please complete the ABA consent form after your appointment is approved. Your answers are confidential and visible to your care team."
+                    : isPsychotherapy
+                      ? "Please complete the Psychotherapy consent and intake forms after your appointment is approved. Your answers are confidential and visible to your psychologist."
+                      : "Please complete these forms now that your appointment has been approved. Your answers are confidential and only visible to your psychologist."}
                 </p>
               </header>
               {body}
@@ -1078,10 +1105,10 @@ export default function Consent() {
         >
           <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl">
             <h3 id="leave-title" className="m-0 font-serif text-xl text-[#202020]">
-              {pay?.service_id === "aba" ? "Please complete the ABA consent first" : "Please complete your forms first"}
+              {isAba ? "Please complete the ABA consent first" : "Please complete your forms first"}
             </h3>
             <p className="mb-0 mt-3 text-sm leading-relaxed text-[#555]">
-              {pay?.service_id === "aba"
+              {isAba
                 ? <>The ABA consent form is <strong>required</strong> before your appointment can proceed. Your progress is saved as you go.</>
                 : <>The consent and intake forms are <strong>required</strong> before your appointment can proceed. Please answer all of them so you can continue. Your answers are saved as you go.</>}
             </p>

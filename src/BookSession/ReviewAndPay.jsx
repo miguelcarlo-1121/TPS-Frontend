@@ -91,13 +91,16 @@ export default function ReviewAndPay() {
 
   const price = options?.price ?? 0;
   const percent = options?.downpayment_percent ?? 50;
-  const isPsycho = serviceId === "psychotherapy";
+  const normalizedServiceName = String(service?.name || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+  const isPsycho = serviceId === "psychotherapy" || normalizedServiceName.includes("psychotherapy");
   const isFixedDownpayment = isPsycho || serviceId === "assessment";
+  const isAba = serviceId === "aba" || normalizedServiceName === "abatherapy";
+  const isFullPaymentOnly = isAba || options?.downpayment_allowed === false;
   const downAmount = isFixedDownpayment
     ? Number(options?.downpayment_amount) || 0
     : Math.round(price * percent) / 100;
   const downAvailable =
-    options?.downpayment_allowed !== false && downAmount > 0 && downAmount < price;
+    !isFullPaymentOnly && downAmount > 0 && downAmount < price;
   const methods = options?.methods || [];
   const method = methods.find((m) => m.id === methodId) || null;
 
@@ -168,7 +171,7 @@ export default function ReviewAndPay() {
         paymentDraft: null,
       });
       navigate("/book/approval", { replace: true });
-        } catch (err) {
+    } catch (err) {
       if (err.message?.includes("session expired")) return navigate("/signin");
       // Expired na ang hold sa server: linisin ang naiwang hold sa context
       if (err.message?.includes("held time has expired")) {
@@ -190,7 +193,7 @@ export default function ReviewAndPay() {
 
   const tryProceed = () => {
     if (!isFormValid || submitting) return;
-    if (effectiveType === "down" && serviceId !== "psychotherapy") {
+    if (effectiveType === "down" && !isPsycho) {
       setShowDownWarn(true);
       return;
     }
@@ -270,9 +273,9 @@ export default function ReviewAndPay() {
               </div>
 
               <h3 className="mt-8 mb-3 font-serif text-lg font-normal text-[#202020]">Payment option</h3>
-              {options && price <= 0 && (
+              {options && isFullPaymentOnly && (
                 <p className="m-0 mb-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-                  {service?.name} is paid in full. Downpayment is not available for this service.
+                  {service?.name || "This service"} requires full payment. Downpayment is not available.
                 </p>
               )}
               <div className={`grid gap-3 ${downAvailable ? "grid-cols-2 max-[560px]:grid-cols-1" : "grid-cols-1"}`}>

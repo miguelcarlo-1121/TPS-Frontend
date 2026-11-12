@@ -75,7 +75,6 @@ export default function UserInfo() {
 
   // Kunin ang naka-save na info (o prefill mula sa account) kung wala pang laman ang form
   useEffect(() => {
-    if (c.fullName || c.email || c.mobile) return;
     let alive = true;
     setLoadingInfo(true);
     apiFetch("/booking/client-info")
@@ -155,6 +154,7 @@ export default function UserInfo() {
       await apiFetch("/booking/client-info", {
         method: "POST",
         body: JSON.stringify({
+          hold_id: booking.holdId,
           full_name: data.fullName,
           birthdate: data.birthdate,
           email: data.email,
@@ -239,10 +239,14 @@ export default function UserInfo() {
                       type="text"
                       autoComplete="name"
                       maxLength={150}
-                      className={`${inputClass} ${err("fullName") ? inputError : ""}`}
+                      readOnly
+                      aria-describedby="account-name-hint"
+                      className={`${inputClass} cursor-not-allowed bg-[#f4f4f4] ${err("fullName") ? inputError : ""}`}
                       value={fullName}
-                      onChange={(e) => setFullName(e.target.value.replace(NAME_STRIP, ""))}
                     />
+                    <span id="account-name-hint" className="text-xs text-[#666]">
+                      This name comes from your account and cannot be changed here.
+                    </span>
                   </Field>
                   <Field id="birthdate" label="Date of birth" error={err("birthdate")}>
                     <input

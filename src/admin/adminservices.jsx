@@ -18,6 +18,14 @@ const STEP = 0.5;
 const MAX_IMAGE_MB = 2;
 
 const fmtHours = (h) => `${h} ${h === 1 ? "hr" : "hrs"}`;
+const isAssessmentService = (service) => {
+    if (service.id === "assessment" || service.slug === "assessment") return true;
+    const normalizedName = String(service.name || "")
+        .toLowerCase()
+        .replace(/&/g, "and")
+        .replace(/[^a-z0-9]/g, "");
+    return normalizedName === "assessmentandconsultation" || normalizedName === "assessmentconsultation";
+};
 
 const inputCls = `${inter} h-[40px] rounded-[6px] border border-[#c7b6b6] bg-white px-[12px] text-[16px] text-[#202020] outline-none focus:border-[#4a9b8e] focus:ring-2 focus:ring-[#4a9b8e]/25 sm:h-[38px] sm:text-[13px]`;
 const areaCls = `${inter} rounded-[6px] border border-[#c7b6b6] bg-white px-[12px] py-[8px] text-[16px] leading-[1.45] text-[#202020] outline-none focus:border-[#4a9b8e] focus:ring-2 focus:ring-[#4a9b8e]/25 sm:text-[13px]`;
@@ -390,7 +398,7 @@ const ServiceModal = ({ service, price, onClose, onSave }) => {
     const [removeImage, setRemoveImage] = useState(false);
     const set = (k) => (e) => setForm({ ...form, [k]: e.target.value });
 
-    const isAssessment = service.id === "assessment";
+    const isAssessment = isAssessmentService(service);
     const hoursOk = form.hours >= MIN_HOURS && form.hours <= MAX_HOURS;
     const valid = form.name.trim() && form.text.trim() && hoursOk;
 
@@ -700,13 +708,20 @@ function AssessmentTypesPanel({ onGoToPayment }) {
     const [deletingType, setDeletingType] = useState(null); // Type requested to be deleted (triggers popup modal)
     const [busy, setBusy] = useState(false);
     const [toast, setToast] = useState("");
+    const [loadError, setLoadError] = useState("");
 
     const notify = (msg) => { setToast(msg); setTimeout(() => setToast(""), 2500); };
 
     useEffect(() => {
         apiFetch("/admin/assessment-types")
-            .then((d) => setTypes(d.types || []))
-            .catch(() => setTypes([]));
+            .then((d) => {
+                setTypes(d.types || []);
+                setLoadError("");
+            })
+            .catch((err) => {
+                setTypes([]);
+                setLoadError(err.message || "Could not load assessment types.");
+            });
     }, []);
 
     const saveNew = async (body) => {
@@ -754,7 +769,7 @@ function AssessmentTypesPanel({ onGoToPayment }) {
     };
 
     return (
-        <div className="mt-[16px] border-t border-[#e8e8e8] pt-[14px]">
+        <section className="mt-[24px] rounded-[10px] border border-[#d8dedb] bg-white p-[16px] sm:p-[20px]">
             <div className="flex items-center justify-between gap-[8px] mb-[10px]">
                 <div>
                     <div className={`${serif} text-[13px] font-bold text-[#2f4a42]`}>Assessment Types</div>
@@ -780,6 +795,12 @@ function AssessmentTypesPanel({ onGoToPayment }) {
                     </button>
                 )}
             </div>
+
+            {loadError && (
+                <p role="alert" className={`${inter} mb-[10px] rounded-[6px] border border-red-200 bg-red-50 px-[12px] py-[8px] text-[11px] text-red-800`}>
+                    {loadError}
+                </p>
+            )}
 
             {adding && (
                 <div className="mb-[10px]">
@@ -831,7 +852,7 @@ function AssessmentTypesPanel({ onGoToPayment }) {
             {toast && (
                 <p className={`${inter} mt-[10px] rounded-[6px] bg-[#2f4a42] px-[12px] py-[6px] text-[11px] text-white`}>{toast}</p>
             )}
-        </div>
+        </section>
     );
 }
 
@@ -1014,8 +1035,8 @@ export default function AdminServices() {
                     <div className="mt-[24px] grid grid-cols-1 gap-[16px] sm:mt-[34px] md:grid-cols-2 md:gap-[20px] xl:grid-cols-3 xl:gap-[29px]">
                         {services.map((s) => {
                             const visible = s.enabled !== false;
-                            const isAssessment = s.id === "assessment";
-                            const isCustom = s.is_custom || (!["psychotherapy", "aba", "assessment"].includes(s.id));
+                            const isAssessment = isAssessmentService(s);
+                            const isCustom = !isAssessment && (s.is_custom || (!["psychotherapy", "aba", "assessment"].includes(s.id)));
                             const price = Number(prices[s.id]) || 0;
 
                             return (
@@ -1058,6 +1079,10 @@ export default function AdminServices() {
                                                     </span>
                                                 ))}
                                             </div>
+                                        )}
+
+                                        {isAssessment && (
+                                            <AssessmentTypesPanel onGoToPayment={() => navigate(PAYMENT_METHODS_PATH)} />
                                         )}
 
                                         {/* Card footer: Assessment has NO time/price stepper because hours & fees are set per assessment type */}
@@ -1104,9 +1129,6 @@ export default function AdminServices() {
                                                 Edit details
                                             </button>
                                         </div>
-
-                                        {/* Assessment Types Panel inside Assessment Consultation */}
-                                        {isAssessment && <AssessmentTypesPanel onGoToPayment={() => navigate(PAYMENT_METHODS_PATH)} />}
                                     </div>
                                 </section>
                             );

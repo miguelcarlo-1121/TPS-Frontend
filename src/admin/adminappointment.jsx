@@ -244,7 +244,7 @@ const AppointmentCard = ({ a, open, onToggle, busy, onApprove, onVerify, onViewC
                             onClick={onViewConsent}
                             className={`${serif} h-[26px] cursor-pointer rounded-[5px] border border-[#4a9b8e] bg-white px-[12px] text-[11px] text-[#2a8570] hover:bg-[#e3f2ee]`}
                         >
-                            {a.service_id === "aba" ? "View ABA consent" : "View consent form"}
+                            {a.consent_type === "aba" || a.service_id === "aba" ? "View ABA consent" : "View consent form"}
                         </button>
                     )}
                     <MessageBtn />

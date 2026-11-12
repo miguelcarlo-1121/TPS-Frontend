@@ -530,7 +530,7 @@ export default function ConsentViewer({ base, appointment, onClose }) {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState("");
     const [tab, setTab] = useState("consent");
-    const isAba = appointment.service_id === "aba";
+    const isAba = appointment.consent_type === "aba" || appointment.service_id === "aba";
     const tabs = isAba ? [["consent", "ABA consent"]] : TABS;
 
     useEffect(() => {

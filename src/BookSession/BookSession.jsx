@@ -2,7 +2,6 @@ import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Navbar, Footer, Reveal, container, btnGhost, btnSolid } from "../components/Layout";
 import { apiFetch } from "../auth";
-import { SERVICES } from "../data/clinic";
 import StepRail from "./StepRail";
 import BookingSummary from "./BookingSummary";
 import { useBooking } from "./bookingContext";
@@ -184,9 +183,9 @@ function AssessmentTypePicker({ selectedId, onSelect }) {
 /* ---------- Main Page ---------- */
 export default function BookSession() {
   const navigate = useNavigate();
-  const { booking, update, service, summaryRows, feeLabel } = useBooking();
+  const { booking, update, service, services, servicesLoading, servicesError, summaryRows, feeLabel } = useBooking();
   const serviceId = booking.serviceId;
-  const isAssessment = serviceId === "assessment";
+  const isAssessment = service?.id === "assessment";
 
   const [checking, setChecking] = useState(true);
 
@@ -242,10 +241,10 @@ export default function BookSession() {
 
   // For assessment, also require an assessment type to be chosen
   const canContinue = isAssessment
-    ? !!serviceId && !!booking.assessmentTypeId
-    : !!serviceId;
+    ? !!service && !!booking.assessmentTypeId
+    : !!service;
 
-  if (checking) return <BookingSkeleton />;
+  if (checking || servicesLoading) return <BookingSkeleton />;
 
   return (
     <div className={pageShell}>
@@ -274,8 +273,15 @@ export default function BookSession() {
                 </p>
               </header>
 
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-                {SERVICES.map((s) => {
+              {servicesError && (
+                <p role="alert" className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                  {servicesError}
+                </p>
+              )}
+
+              {services.length > 0 ? (
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+                {services.map((s) => {
                   const selected = serviceId === s.id;
                   return (
                     <button
@@ -307,7 +313,13 @@ export default function BookSession() {
                     </button>
                   );
                 })}
-              </div>
+                </div>
+              ) : !servicesError ? (
+                <div className="rounded-xl border border-dashed border-[#b6d2c4] bg-[#f9fcfb] px-5 py-8 text-center">
+                  <p className="m-0 font-serif text-base text-[#3d5c52]">No services available right now</p>
+                  <p className="m-0 mt-1 text-sm text-[#666]">Please check back later.</p>
+                </div>
+              ) : null}
 
               {/* ---- Assessment Type Picker (shown only when assessment is selected) ---- */}
               {isAssessment && (
@@ -326,12 +338,10 @@ export default function BookSession() {
               )}
 
               {/* ---- Contextual hints ---- */}
-              {!serviceId && (
+              {!service && (
                 <div className="mt-6 rounded-xl border border-dashed border-[#b6d2c4] bg-[#f9fcfb] px-5 py-8 text-center">
                   <p className="m-0 font-serif text-base text-[#3d5c52]">No service selected yet</p>
-                  <p className="m-0 mt-1 text-sm text-[#666]">
-                    Choose Psychotherapy, ABA Therapy, or Assessment to continue.
-                  </p>
+                  <p className="m-0 mt-1 text-sm text-[#666]">Choose an available service to continue.</p>
                 </div>
               )}
 

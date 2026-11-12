@@ -114,12 +114,19 @@ export default function Approval() {
     })} · ${to12(pay.start_time)} - ${to12(pay.end_time)}`
     : "—";
 
+  const isPsychotherapy =
+    pay?.consent_type === "psychotherapy" ||
+    pay?.service_id === "psychotherapy" ||
+    String(pay?.service_name || "").toLowerCase().replace(/[^a-z0-9]/g, "").includes("psychotherapy");
+  const isAba =
+    pay?.consent_type === "aba" ||
+    pay?.service_id === "aba" ||
+    String(pay?.service_name || "").toLowerCase().replace(/[^a-z0-9]/g, "") === "abatherapy";
   const psychText = pay
-    ? pay.service_id === "psychotherapy"
+    ? isPsychotherapy
       ? pay.psychologist || "—"
       : "Assigned by the clinic"
     : "—";
-  const isPsychotherapy = pay?.service_id === "psychotherapy";
 
   const summaryRows = [
     { label: "SERVICE", value: pay?.service_name || "—" },
@@ -136,7 +143,7 @@ export default function Approval() {
   ];
 
   const rejectedByPayment = pay?.rejected_by === "payment";
-  const needsConsent = !pay || ["psychotherapy", "aba"].includes(pay.service_id);
+  const needsConsent = !pay || isPsychotherapy || isAba;
 
   // Payment na-reject: hindi pwedeng mag-continue, "Back to payment" lang
   const paymentRejected = status === "rejected" && rejectedByPayment;

@@ -95,7 +95,7 @@ function PsychCard({ p, selected, disabled, onClick }) {
 export default function DateTime() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { booking, update, service, feeLabel } = useBooking();
+  const { booking, update, service, services, feeLabel } = useBooking();
 
   // Galing sa MyAppointments (Reschedule). Kapag wala, normal na booking.
   const reschedule = location.state?.reschedule || null;
@@ -103,7 +103,12 @@ export default function DateTime() {
 
   const serviceId = isResched ? reschedule.serviceId : booking.serviceId;
   const psychId = isResched ? reschedule.psychologistId : booking.psychologistId;
-  const isPsycho = serviceId === "psychotherapy";
+  const selectedService = services.find((item) => item.id === serviceId) || service;
+  const normalizedServiceName = String(selectedService?.name || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+  const isPsycho = serviceId === "psychotherapy" || normalizedServiceName.includes("psychotherapy");
+  const isAssessment =
+    serviceId === "assessment" ||
+    (normalizedServiceName.includes("assessment") && normalizedServiceName.includes("consultation"));
 
   const mode = isPsycho
     ? isResched
@@ -174,7 +179,7 @@ export default function DateTime() {
   const calendarParams = () => {
     const q = new URLSearchParams({ service: serviceId });
     if (isPsycho && pFirst) q.set("psychologist_id", psychId);
-    if (serviceId === "assessment" && booking.assessmentTypeId) q.set("assessment_type_id", booking.assessmentTypeId);
+    if (isAssessment && booking.assessmentTypeId) q.set("assessment_type_id", booking.assessmentTypeId);
     // ABA / Assessment reschedule: same provider pa rin
     if (isResched && !isPsycho && reschedule.providerId) {
       q.set("provider_id", reschedule.providerId);
@@ -226,7 +231,7 @@ export default function DateTime() {
   const fetchRecs = (startTime) => {
     const q = new URLSearchParams({ service: serviceId, date: ymd(year, month, day) });
     if (isPsycho && psychId) q.set("psychologist_id", psychId);
-    if (serviceId === "assessment" && booking.assessmentTypeId) q.set("assessment_type_id", booking.assessmentTypeId);
+    if (isAssessment && booking.assessmentTypeId) q.set("assessment_type_id", booking.assessmentTypeId);
     if (startTime) q.set("start_time", startTime);
     return apiFetch(`/booking/recommendations?${q}`).then((d) => d.recommendations || []);
   };
@@ -384,7 +389,7 @@ export default function DateTime() {
       body: JSON.stringify({
         service: serviceId,
         psychologist_id: isPsycho ? psychId : null,
-        ...(serviceId === "assessment" && booking.assessmentTypeId ? { assessment_type_id: booking.assessmentTypeId } : {}),
+        ...(isAssessment && booking.assessmentTypeId ? { assessment_type_id: booking.assessmentTypeId } : {}),
         // ABA / Assessment reschedule: same provider
         ...(isResched && !isPsycho && reschedule.providerId
           ? { provider_id: reschedule.providerId }

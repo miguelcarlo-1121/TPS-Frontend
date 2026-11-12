@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useMemo, useState } from "react";
-import { CLINIC, getPsychologist, getService } from "../data/clinic";
+import { getPsychologist } from "../data/clinic";
+import { apiFetch } from "../auth";
 
 const STORAGE_KEY = "tf_booking";
 
@@ -52,6 +53,58 @@ const BookingContext = createContext(null);
 
 export function BookingProvider({ children }) {
   const [booking, setBooking] = useState(load);
+  const [services, setServices] = useState([]);
+  const [servicesLoading, setServicesLoading] = useState(true);
+  const [servicesError, setServicesError] = useState("");
+
+  useEffect(() => {
+    let alive = true;
+    apiFetch("/services")
+      .then((data) => {
+        if (!alive) return;
+        const availableServices = (data.services || []).map((item) => {
+          const hours = Number(item.hours) || 1;
+          return {
+            ...item,
+            fee: Number(item.price) || 0,
+            fullName: item.title || item.name,
+            duration: `${hours} ${hours === 1 ? "hour" : "hours"}`,
+            description: item.text || "",
+            details: Array.isArray(item.goodFor) ? item.goodFor : [],
+          };
+        });
+        setServices(availableServices);
+        setBooking((current) => {
+          if (!current.serviceId || availableServices.some((item) => item.id === current.serviceId)) {
+            return current;
+          }
+
+          const legacyServiceNames = {
+            psychotherapy: (name) => name.includes("psychotherapy"),
+            aba: (name) => name === "abatherapy",
+            assessment: (name) => name.includes("assessment") && name.includes("consultation"),
+          };
+          const matchesLegacyService = legacyServiceNames[current.serviceId];
+          const replacement = matchesLegacyService
+            ? availableServices.find((item) =>
+                matchesLegacyService(String(item.name || "").toLowerCase().replace(/[^a-z0-9]/g, ""))
+              )
+            : null;
+
+          return replacement ? { ...current, serviceId: replacement.id } : current;
+        });
+        setServicesError("");
+      })
+      .catch((err) => {
+        if (alive) setServicesError(err.message || "Could not load available services.");
+      })
+      .finally(() => {
+        if (alive) setServicesLoading(false);
+      });
+    return () => {
+      alive = false;
+    };
+  }, []);
 
   useEffect(() => {
     sessionStorage.setItem(STORAGE_KEY, JSON.stringify(booking));
@@ -67,7 +120,7 @@ export function BookingProvider({ children }) {
     setBooking(defaultBooking);
   };
 
-  const service = getService(booking.serviceId);
+  const service = services.find((item) => item.id === booking.serviceId) || null;
   const psychologist = getPsychologist(booking.psychologistId);
 
   const dateLabel = useMemo(() => {
@@ -98,7 +151,7 @@ export function BookingProvider({ children }) {
     if (booking.serviceId === "assessment" && booking.assessmentType?.price > 0) {
       return booking.assessmentType.price;
     }
-    return service?.fee ?? CLINIC.sessionFee;
+    return service?.fee ?? 0;
   }, [booking.serviceId, booking.assessmentType, service]);
 
   const feeLabel = `₱${fee.toLocaleString()}`;
@@ -131,6 +184,9 @@ export function BookingProvider({ children }) {
     fee,
     feeLabel,
     summaryRows,
+    services,
+    servicesLoading,
+    servicesError,
   };
 
   return <BookingContext.Provider value={value}>{children}</BookingContext.Provider>;

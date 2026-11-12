@@ -52,21 +52,34 @@ function Notice({ msg }) {
 
 /* ---------------- Pricing + downpayment ---------------- */
 function PricingCard({ settings, onSaved, onOpenServices }) {
-    // Services (excluding assessment, which has pricing per assessment type)
-    const servicesList = (settings.services || [
+    const configuredServices = settings.services || [
         { id: "psychotherapy", name: "Psychotherapy" },
         { id: "aba", name: "ABA Therapy" },
-    ]).filter((s) => s.id !== "assessment");
+    ];
+    const isAssessmentService = (service) => {
+        if (service.id === "assessment" || service.slug === "assessment") return true;
+        const name = String(service.name || "").toLowerCase().replace(/&/g, "and").replace(/[^a-z0-9]/g, "");
+        return name === "assessmentandconsultation" || name === "assessmentconsultation";
+    };
+    const isPsychotherapyService = (service) => {
+        if (service.id === "psychotherapy" || service.slug === "psychotherapy") return true;
+        const name = String(service.name || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+        return name === "psychotherapycounseling";
+    };
+    const assessmentService = configuredServices.find(isAssessmentService) || {
+        id: "assessment",
+        name: "Assessment & Consultation",
+    };
+    const servicesList = [
+        ...configuredServices.filter((service) => !isAssessmentService(service)),
+        assessmentService,
+    ];
 
     const assessmentTypesList = settings.assessment_types || [];
-
-    // Category: "services" | "assessment"
-    const [category, setCategory] = useState("services");
 
     const [serviceTab, setServiceTab] = useState(() => servicesList[0]?.id || "psychotherapy");
     const [atTab, setAtTab] = useState(() => (assessmentTypesList[0]?.id ? String(assessmentTypesList[0].id) : ""));
 
-    const [percent, setPercent] = useState(String(settings.downpayment_percent ?? 50));
     const [psychotherapyDownpayment, setPsychotherapyDownpayment] = useState(
         String(settings.psychotherapy_downpayment_amount ?? 750)
     );
@@ -77,7 +90,7 @@ function PricingCard({ settings, onSaved, onOpenServices }) {
     const [prices, setPrices] = useState(() =>
         Object.fromEntries(
             Object.entries(settings.prices || {})
-                .filter(([k]) => k !== "assessment")
+                .filter(([id]) => !isAssessmentService(configuredServices.find((service) => String(service.id) === String(id)) || { id }))
                 .map(([k, v]) => [k, String(v)])
         )
     );
@@ -86,44 +99,40 @@ function PricingCard({ settings, onSaved, onOpenServices }) {
             Object.entries(settings.assessment_prices || {}).map(([k, v]) => [String(k), String(v)])
         )
     );
+    const percent = Number(settings.downpayment_percent ?? 50);
 
     const [busy, setBusy] = useState(false);
     const [msg, setMsg] = useState(null);
 
-    const isServices = category === "services";
-
-    // Current service or assessment type being priced
-    const currentService = servicesList.find((s) => s.id === serviceTab) || servicesList[0];
+    const currentService = servicesList.find((s) => String(s.id) === String(serviceTab)) || servicesList[0];
     const currentAt = assessmentTypesList.find((t) => String(t.id) === String(atTab)) || assessmentTypesList[0];
+    const isAssessment = isAssessmentService(currentService || {});
+    const isPsychotherapy = isPsychotherapyService(currentService || {});
 
-    const currentPrice = isServices
-        ? Number(prices[currentService?.id]) || 0
-        : Number(atPrices[currentAt?.id]) || 0;
+    const currentPrice = isAssessment
+        ? Number(atPrices[currentAt?.id]) || 0
+        : Number(prices[currentService?.id] ?? (isPsychotherapy ? prices.psychotherapy : 0)) || 0;
 
-    const pct = Number(percent) || 0;
-    const isPsychotherapy = isServices && currentService?.id === "psychotherapy";
-    const isAssessment = !isServices;
+    const fullOnly = !isAssessment && !isPsychotherapy && (settings.full_only || []).includes(currentService?.id);
     const psychotherapyDown = Number(psychotherapyDownpayment) || 0;
     const assessmentDown = Number(assessmentDownpayment) || 0;
     const down = isPsychotherapy
         ? psychotherapyDown
         : isAssessment
             ? assessmentDown
-            : Math.round(currentPrice * pct) / 100;
-    const fullOnly = isServices && (settings.full_only || []).includes(currentService?.id);
+            : Math.round(currentPrice * Number(percent) / 100);
 
     const save = async () => {
         setMsg(null);
-        if (!(pct >= 1 && pct <= 100)) {
-            return setMsg({ type: "err", text: "Downpayment must be 1 to 100 percent." });
-        }
-        if (!(psychotherapyDown >= 1 && psychotherapyDown < (Number(prices.psychotherapy) || 0))) {
+        const psychotherapyService = servicesList.find(isPsychotherapyService);
+        const psychotherapyPrice = Number(prices[psychotherapyService?.id] ?? prices.psychotherapy) || 0;
+        if (!(psychotherapyDown >= 1 && psychotherapyDown < psychotherapyPrice)) {
             return setMsg({ type: "err", text: "Psychotherapy downpayment must be at least ₱1 and less than the session fee." });
         }
         if (!(assessmentDown >= 1)) {
             return setMsg({ type: "err", text: "Assessment downpayment must be at least ₱1." });
         }
-        for (const s of servicesList) {
+        for (const s of servicesList.filter((service) => !isAssessmentService(service))) {
             if (!(Number(prices[s.id]) >= 1)) {
                 return setMsg({ type: "err", text: `Set a price for ${s.name}.` });
             }
@@ -133,19 +142,18 @@ function PricingCard({ settings, onSaved, onOpenServices }) {
                 return setMsg({ type: "err", text: `Set a price for assessment type: ${t.name}.` });
             }
         }
-
         setBusy(true);
         try {
             const d = await apiFetch("/admin/payment-settings", {
                 method: "PUT",
                 body: JSON.stringify({
-                    downpayment_percent: pct,
+                    downpayment_percent: Number(percent),
                     psychotherapy_downpayment_amount: psychotherapyDown,
                     assessment_downpayment_amount: assessmentDown,
                     note: note.trim() || null,
                     prices: Object.fromEntries(
                         Object.entries(prices)
-                            .filter(([k]) => k !== "assessment")
+                            .filter(([id]) => !isAssessmentService(configuredServices.find((service) => String(service.id) === String(id)) || { id }))
                             .map(([k, v]) => [k, Number(v)])
                     ),
                     assessment_prices: Object.fromEntries(
@@ -166,79 +174,45 @@ function PricingCard({ settings, onSaved, onOpenServices }) {
         <Card className="p-[16px]">
             <CardTitle>Service prices &amp; payment terms</CardTitle>
             <p className={`${serif} text-[11px] text-black`}>
-                Set how much clients pay for each service and assessment type. These prices are the ones
+                Set the session fee and applicable downpayment for each service and assessment type. These prices are the ones
                 shown on the Services page and booking.
             </p>
 
-            {/* Category Switcher: Services vs Assessment Types */}
-            <div className="mt-[14px] flex gap-[8px] border-b border-[#e5e5e5] pb-[10px]">
-                <button
-                    type="button"
-                    onClick={() => setCategory("services")}
-                    className={`${serif} cursor-pointer rounded-[6px] border px-[12px] py-[4px] text-[12px] font-bold transition-colors ${isServices
-                        ? "border-[#4a9b8e] bg-[#4a9b8e] text-white"
-                        : "border-[#c7b6b6] bg-white text-[#555] hover:bg-[#f2f2f2]"
-                        }`}
-                >
-                    Services ({servicesList.length})
-                </button>
-                <button
-                    type="button"
-                    onClick={() => {
-                        setCategory("assessment");
-                        if (!atTab && assessmentTypesList[0]?.id) {
-                            setAtTab(String(assessmentTypesList[0].id));
-                        }
-                    }}
-                    className={`${serif} cursor-pointer rounded-[6px] border px-[12px] py-[4px] text-[12px] font-bold transition-colors ${!isServices
-                        ? "border-[#4a9b8e] bg-[#4a9b8e] text-white"
-                        : "border-[#c7b6b6] bg-white text-[#555] hover:bg-[#f2f2f2]"
-                        }`}
-                >
-                    Assessment Types ({assessmentTypesList.length})
-                </button>
+            <div className="mt-[14px]">
+                <div className="flex flex-wrap gap-[4px] rounded-[11px] bg-[#4a9b8e30] p-[3px]">
+                    {servicesList.map((s) => (
+                        <button
+                            key={s.id}
+                            type="button"
+                            onClick={() => setServiceTab(s.id)}
+                            className={`${serif} h-[28px] cursor-pointer rounded-[9px] border-0 px-[12px] text-[11px] text-[#202020] ${String(serviceTab) === String(s.id) ? "bg-white font-bold shadow-sm" : "bg-transparent"}`}
+                        >
+                            {s.name}
+                        </button>
+                    ))}
+                </div>
             </div>
 
-            {/* If in Services category */}
-            {isServices && (
+            {!isAssessment && currentService && (
                 <>
-                    <div className="mt-[12px] flex flex-wrap gap-[4px] rounded-[11px] bg-[#4a9b8e30] p-[3px]">
-                        {servicesList.map((s) => (
-                            <button
-                                key={s.id}
-                                type="button"
-                                onClick={() => setServiceTab(s.id)}
-                                className={`${serif} h-[24px] cursor-pointer rounded-[9px] border-0 px-[12px] text-[11px] text-[#202020] ${serviceTab === s.id ? "bg-white font-bold shadow-sm" : "bg-transparent"
-                                    }`}
-                            >
-                                {s.name}
-                            </button>
-                        ))}
+                    <label className={`${serif} mt-[14px] block text-[11px] text-[#666]`}>
+                        Session fee ({currentService.name})
+                    </label>
+                    <div className="relative">
+                        <span className="absolute left-[10px] top-[14px] text-[12px] text-[#666]">₱</span>
+                        <input
+                            type="number"
+                            min="1"
+                            step="1"
+                            value={prices[currentService.id] || ""}
+                            onChange={(e) => setPrices({ ...prices, [currentService.id]: e.target.value })}
+                            className={`${fieldCls} pl-[24px]`}
+                        />
                     </div>
-
-                    {currentService && (
-                        <>
-                            <label className={`${serif} mt-[14px] block text-[11px] text-[#666]`}>
-                                Session fee ({currentService.name})
-                            </label>
-                            <div className="relative">
-                                <span className="absolute left-[10px] top-[14px] text-[12px] text-[#666]">₱</span>
-                                <input
-                                    type="number"
-                                    min="1"
-                                    step="1"
-                                    value={prices[currentService.id] || ""}
-                                    onChange={(e) => setPrices({ ...prices, [currentService.id]: e.target.value })}
-                                    className={`${fieldCls} pl-[24px]`}
-                                />
-                            </div>
-                        </>
-                    )}
                 </>
             )}
 
-            {/* If in Assessment Types category */}
-            {!isServices && (
+            {isAssessment && (
                 <>
                     {assessmentTypesList.length === 0 ? (
                         <div className="mt-[14px] rounded-[8px] border border-dashed border-[#c7b6b6] bg-[#fafafa] p-[16px] text-center">
@@ -256,7 +230,10 @@ function PricingCard({ settings, onSaved, onOpenServices }) {
                         </div>
                     ) : (
                         <>
-                            <div className="mt-[12px] flex flex-wrap gap-[4px] rounded-[11px] bg-[#4a9b8e30] p-[3px]">
+                            <p className={`${serif} mt-[14px] text-[11px] text-[#666]`}>
+                                Assessment type
+                            </p>
+                            <div className="mt-[6px] flex flex-wrap gap-[4px] rounded-[11px] bg-[#4a9b8e30] p-[3px]">
                                 {assessmentTypesList.map((t) => (
                                     <button
                                         key={t.id}
@@ -273,7 +250,7 @@ function PricingCard({ settings, onSaved, onOpenServices }) {
                             {currentAt && (
                                 <>
                                     <label className={`${serif} mt-[14px] block text-[11px] text-[#666]`}>
-                                        Fee for Assessment Type: <strong>{currentAt.name}</strong> ({currentAt.hours || round1(currentAt.duration_minutes / 60)} hr)
+                                        Session fee ({currentAt.name}, {currentAt.hours || round1(currentAt.duration_minutes / 60)} hr)
                                     </label>
                                     <div className="relative">
                                         <span className="absolute left-[10px] top-[14px] text-[12px] text-[#666]">₱</span>
@@ -305,7 +282,11 @@ function PricingCard({ settings, onSaved, onOpenServices }) {
                 .
             </p>
 
-            {fullOnly ? null : isPsychotherapy || isAssessment ? (
+            {fullOnly ? (
+                <p className={`${serif} mt-[14px] rounded-[6px] bg-[#f6f6f6] px-[12px] py-[10px] text-[11px] text-[#666]`}>
+                    ABA Therapy requires full payment. No downpayment is collected.
+                </p>
+            ) : isPsychotherapy || isAssessment ? (
                 <>
                     <label className={`${serif} mt-[14px] block text-[11px] text-[#666]`}>
                         {isPsychotherapy
@@ -331,27 +312,14 @@ function PricingCard({ settings, onSaved, onOpenServices }) {
                         {isPsychotherapy
                             ? `Client pays ${peso(down)} now, balance ${peso(Math.max(0, currentPrice - down))}. Enter the amount in pesos; it does not change with the session fee.`
                             : currentAt
-                                ? `${peso(down)} applies to every assessment type. For ${currentAt.name}, the remaining balance is ${peso(Math.max(0, currentPrice - down))}${down >= currentPrice ? "; downpayment is unavailable because this amount meets or exceeds the assessment fee" : ""}.`
-                                : "Enter one fixed peso amount shared by all assessment types."}
+                                ? `${peso(down)} is shared by all assessment types. For ${currentAt.name}, the remaining balance is ${peso(Math.max(0, currentPrice - down))}${down >= currentPrice ? "; downpayment is unavailable because this amount meets or exceeds the assessment fee" : ""}.`
+                                : "This fixed peso amount is shared by all assessment types."}
                     </p>
                 </>
             ) : (
-                <>
-                    <label className={`${serif} mt-[14px] block text-[11px] text-[#666]`}>Downpayment (% of the fee)</label>
-                    <input
-                        type="number"
-                        min="1"
-                        max="100"
-                        step="1"
-                        value={percent}
-                        onChange={(e) => setPercent(e.target.value)}
-                        className={fieldCls}
-                    />
-                    <p className={`${serif} mt-[6px] text-[11px] text-[#2a8570]`}>
-                        Client pays {peso(down)} now, balance {peso(Math.max(0, currentPrice - down))}. Set 100 to require full payment only.
-                        The downpayment percent applies to ABA and custom services.
-                    </p>
-                </>
+                <p className={`${serif} mt-[6px] text-[11px] text-[#2a8570]`}>
+                    Client pays {peso(down)} now, balance {peso(Math.max(0, currentPrice - down))}.
+                </p>
             )}
 
             <label className={`${serif} mt-[14px] block text-[11px] text-[#666]`}>Note shown to clients</label>
