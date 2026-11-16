@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import AdminNavigation from "./adminnavigation";
 import ProfileMenu from "../components/ProfileMenu";
+import SkeletonBlock from "../components/SkeletonBlock";
 import ConsentViewer from "../components/ConsentViewer";
 import VideoCall from "../components/VideoCall"; // <-- IMPORT NG VIDEO CALL
 import { apiFetch } from "../auth";
@@ -510,7 +511,9 @@ export default function AdminAppointment() {
                                 className={`h-[84px] cursor-pointer rounded-tl-[18px] rounded-tr-[7px] rounded-br-[18px] rounded-bl-[7px] border border-[#2020203d] px-[19px] pt-[9px] text-left transition-colors ${active ? "bg-[#4a9b8e78]" : "bg-white hover:bg-[#4a9b8e22]"
                                     }`}
                             >
-                                <div className={`${serif} text-[24px] font-bold leading-[1.2] text-[#2f4a42]`}>{counts[key] ?? 0}</div>
+                                <div className={`${serif} text-[24px] font-bold leading-[1.2] text-[#2f4a42]`}>
+                                    {loading ? <SkeletonBlock className="h-7 w-8 rounded" /> : counts[key] ?? 0}
+                                </div>
                                 <div className={`${serif} text-[14px] font-bold leading-[1.1] text-[#2f4a42]`}>{label}</div>
                             </button>
                         );
@@ -538,9 +541,31 @@ export default function AdminAppointment() {
                 )}
 
                 <div className="mt-[26px]">
-                    {busyLoading && <p className={`${serif} text-sm text-[#666]`}>Loading appointments…</p>}
+                    {busyLoading && (
+                        <div className="flex flex-col gap-[22px]" aria-busy="true">
+                            {[0, 1, 2].map((item) => (
+                                <div key={item}>
+                                    <div className="mt-[28px] flex items-center gap-[14px] first:mt-0 sm:mt-[34px]">
+                                        <SkeletonBlock className="h-3 w-28 rounded" />
+                                        <SkeletonBlock className="h-px flex-1" />
+                                    </div>
+                                    <div className="mt-[16px] rounded-[12px] border border-[#d8dedb] bg-white p-5">
+                                        <div className="flex items-center gap-3">
+                                            <SkeletonBlock className="size-11 shrink-0 rounded-full" />
+                                            <div className="flex-1">
+                                                <SkeletonBlock className="h-4 w-40 max-w-full rounded" />
+                                                <SkeletonBlock className="mt-2 h-3 w-28 rounded" />
+                                            </div>
+                                        </div>
+                                        <SkeletonBlock className="mt-5 h-3 w-3/4 rounded" />
+                                        <SkeletonBlock className="mt-2 h-3 w-1/2 rounded" />
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    )}
 
-                    {groups.map((g) => (
+                    {!busyLoading && groups.map((g) => (
                         <section key={g.label} className="mb-[8px]">
                             <DayHeading>{g.label}</DayHeading>
                             <div className="mt-[16px] flex flex-col gap-[22px]">

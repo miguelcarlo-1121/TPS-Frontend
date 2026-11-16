@@ -14,6 +14,8 @@ import { to12 } from "../components/payUtils";
 import VideoCall from "../components/VideoCall"; // <-- IMPORT NG VIDEO CALL
 import ReceiptModal from "../components/ReceiptModal";
 import TherapistProfileModal from "../components/TherapistProfileModal";
+import { getServiceProviderDisplay } from "../BookSession/serviceProviderDisplay";
+import SkeletonBlock from "../components/SkeletonBlock";
 
 const MESSAGES = {
   Confirmed: "Your appointment is confirmed. We look forward to seeing you.",
@@ -29,6 +31,7 @@ const MESSAGES = {
 const BALANCE_ROUTE = (id) => `/appointments/balance/${id}`;
 const BALANCE_PAYABLE = ["Confirmed", "Pending approval", "Completed"];
 const toItem = (a) => {
+  const provider = getServiceProviderDisplay(a.service_id, a.service_name, a.psychologist);
   const start = new Date(`${a.date}T${a.start_time}:00`);
   const sameDay = start.toDateString() === new Date().toDateString();
   const upcoming = a.tab === "upcoming";
@@ -53,7 +56,8 @@ const toItem = (a) => {
     raw: a,
     tab: a.tab,
     service: a.service_name,
-    doctor: a.psychologist || "Assigned by the clinic",
+    doctor: provider.value,
+    providerLabel: provider.appointmentLabel,
     dateLabel: start.toLocaleDateString("en-US", {
       weekday: "short",
       month: "short",
@@ -320,7 +324,6 @@ export default function MyAppointments() {
             </div>
           </Reveal>
 
-          {loading && <p className="mb-6 text-sm text-[#666]">Loading your appointments…</p>}
           {loadError && (
             <p
               role="alert"
@@ -432,8 +435,27 @@ export default function MyAppointments() {
                         : "Cancelled appointments"}
                   </h2>
 
-                  {filtered.length === 0 ? (
-                    !loading && <EmptyState tab={tab} />
+                  {loading ? (
+                    <div className="flex flex-col gap-5" role="status" aria-label="Loading appointments">
+                      <span className="sr-only">Loading your appointments…</span>
+                      {[0, 1, 2].map((item) => (
+                        <div key={item} className="rounded-2xl border border-[#666]/20 bg-white p-6">
+                          <div className="flex items-center gap-4">
+                            <SkeletonBlock className="size-14 shrink-0 rounded-full" />
+                            <div className="grid flex-1 gap-2">
+                              <SkeletonBlock className="h-4 w-48 max-w-full rounded" />
+                              <SkeletonBlock className="h-3 w-56 max-w-full rounded" />
+                            </div>
+                          </div>
+                          <div className="mt-5 flex flex-wrap gap-2">
+                            <SkeletonBlock className="h-6 w-28 rounded-lg" />
+                            <SkeletonBlock className="h-6 w-24 rounded-lg" />
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : filtered.length === 0 ? (
+                    <EmptyState tab={tab} />
                   ) : (
                     <div className="flex flex-col gap-5">
                       {filtered.map((apt) => (
@@ -649,7 +671,7 @@ export default function MyAppointments() {
             <dl className="mt-4 grid gap-2 text-sm">
               {[
                 ["Reference", details.raw.reference],
-                ["Psychologist", details.doctor],
+                [details.providerLabel, details.doctor],
                 ["Date", details.dateLabel],
                 ["Time", details.time],
                 ["Format", details.format],

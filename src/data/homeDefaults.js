@@ -7,6 +7,7 @@ export const DEFAULT_HOME_CONTENT = {
     highlight: "your journey",
     subtext:
       "Access compassionate mental health services, professional counseling, therapy, and assessment consultation in a safe and supportive environment.",
+    photo: "",
     ctaLabel: "Book an Appointment",
     linkLabel: "Learn how it works",
   },

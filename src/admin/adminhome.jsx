@@ -1,9 +1,10 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import AdminNavigation from "./adminnavigation";
 import ProfileMenu from "../components/ProfileMenu";
-import { apiFetch } from "../auth";
+import { API_URL, apiFetch } from "../auth";
 import { getHomeContent, saveHomeContent, uploadHomeImage } from "./homeApi";
 import { DEFAULT_HOME_CONTENT, mergeHomeContent } from "../data/homeDefaults";
+import SkeletonBlock from "../components/SkeletonBlock";
 
 const FONT_CSS = `@import url('https://fonts.googleapis.com/css2?family=Inria+Serif:wght@400;700&family=Inter:wght@400;600;700&display=swap');`;
 const inter = "font-['Inter',Helvetica,sans-serif]";
@@ -15,6 +16,12 @@ const SERVICE_ICONS = ["chat", "blocks", "check"];
 const uid = () => `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
 
 const EMPTY_ABOUT = { headline: "", intro: "", members: [] };
+
+function homeImageSource(value) {
+    if (typeof value !== "string" || !value.trim()) return "";
+    const src = value.trim();
+    return src.startsWith("/storage/") ? new URL(src, API_URL).toString() : src;
+}
 
 // 16px sa mobile para hindi mag-zoom ang iOS kapag nag-focus sa input
 const inputCls = `${inter} w-full min-w-0 rounded-[6px] border border-[#c7b6b6] bg-white px-[12px] text-[16px] sm:text-[13px] text-[#202020] outline-none focus:border-[#4a9b8e] focus:ring-2 focus:ring-[#4a9b8e]/25`;
@@ -105,6 +112,7 @@ function ListEditor({ items, onChange, min = 1, max = 8, addLabel, makeNew, labe
 function PhotoField({ value, onChange, notify }) {
     const ref = useRef(null);
     const [busy, setBusy] = useState(false);
+    const imageSrc = homeImageSource(value);
     const pick = async (e) => {
         const file = e.target.files?.[0];
         e.target.value = "";
@@ -124,10 +132,11 @@ function PhotoField({ value, onChange, notify }) {
     return (
         <div className="flex flex-wrap items-center gap-[14px]">
             <div className="flex h-[64px] w-[104px] shrink-0 items-center justify-center overflow-hidden rounded-[6px] border border-[#c7b6b6] bg-[#f2f2f2]">
-                {value ? <img src={value} alt="" className="h-full w-full object-cover" /> : <span className={`${serif} text-[11px] text-[#666]`}>No photo</span>}
+                {imageSrc ? <img src={imageSrc} alt="" className="h-full w-full object-cover" /> : <span className={`${serif} text-[11px] text-[#666]`}>No photo</span>}
             </div>
             <input ref={ref} type="file" accept="image/png,image/jpeg,image/webp" className="hidden" onChange={pick} />
             <SmallBtn disabled={busy} onClick={() => ref.current?.click()}>{busy ? "Uploading…" : value ? "Replace" : "Upload"}</SmallBtn>
+            {value && !busy && <SmallBtn danger onClick={() => onChange("")}>Remove</SmallBtn>}
             <span className={`${serif} text-[11px] text-[#666]`}>PNG, JPG, WebP · up to {MAX_IMAGE_MB} MB</span>
         </div>
     );
@@ -343,6 +352,7 @@ export default function AdminHome() {
     };
 
     const { hero, steps, services, faqs, contact } = content;
+    const heroImageSrc = homeImageSource(hero.photo);
     const tabErrors = errors[tab];
 
     return (
@@ -367,7 +377,29 @@ export default function AdminHome() {
                     </div>
                 </header>
 
-                {loading && <p className={`${serif} mt-[48px] text-[14px] text-[#666]`}>Loading home page content…</p>}
+                {loading && (
+                    <div className="mt-[28px] space-y-[18px] sm:mt-[34px]" aria-busy="true">
+                        <div className="flex gap-2 overflow-hidden rounded-[11px] bg-[#4a9b8e30] p-[4px] lg:w-fit">
+                            {TABS.map((item) => <SkeletonBlock key={item} className="h-[30px] w-20 shrink-0 rounded-[9px] bg-[#d7e8e2]" />)}
+                        </div>
+                        <section className="rounded-[10px] border border-[#c7b6b6] bg-white p-4 sm:p-[24px]">
+                            <SkeletonBlock className="h-5 w-48 rounded" />
+                            <SkeletonBlock className="mt-3 h-3 w-3/4 rounded" />
+                            <div className="mt-6 grid gap-4 md:grid-cols-2">
+                                {[0, 1, 2, 3].map((field) => (
+                                    <div key={field}>
+                                        <SkeletonBlock className="mb-2 h-3 w-28 rounded" />
+                                        <SkeletonBlock className="h-10 w-full rounded-md" />
+                                    </div>
+                                ))}
+                                <div className="md:col-span-2">
+                                    <SkeletonBlock className="mb-2 h-3 w-24 rounded" />
+                                    <SkeletonBlock className="h-24 w-full rounded-md" />
+                                </div>
+                            </div>
+                        </section>
+                    </div>
+                )}
 
                 {loadError && !loading && (
                     <div className="mt-[34px] rounded-[10px] border border-[#ff4c4c75] bg-white p-4 sm:p-[24px]">
@@ -412,20 +444,50 @@ export default function AdminHome() {
                                             <Field label="Highlighted words" hint="Shown after the headline, ending with a period."><input className={inputH} value={hero.highlight} onChange={(e) => setSection("hero", { highlight: e.target.value })} /></Field>
                                         </div>
                                         <Field label="Description"><textarea rows={3} className={areaCls} value={hero.subtext} onChange={(e) => setSection("hero", { subtext: e.target.value })} /></Field>
+                                        <Field
+                                            label="Hero banner image"
+                                            hint="Shown as a full-width banner behind the text, with a soft fade on the left. Use a wide landscape photo (about 1920×800) and keep the main subject on the right. Any image is automatically cropped to fit."
+                                        >
+                                            <PhotoField
+                                                value={hero.photo}
+                                                onChange={(photo) => setSection("hero", { photo })}
+                                                notify={notify}
+                                            />
+                                        </Field>
                                         <div className="grid grid-cols-1 gap-[14px] md:grid-cols-2">
                                             <Field label="Main button label"><input className={inputH} value={hero.ctaLabel} onChange={(e) => setSection("hero", { ctaLabel: e.target.value })} /></Field>
                                             <Field label="Secondary link label"><input className={inputH} value={hero.linkLabel} onChange={(e) => setSection("hero", { linkLabel: e.target.value })} /></Field>
                                         </div>
                                     </div>
-                                    <div className="mt-[20px] rounded-[8px] bg-[#f1f6f3] p-4 sm:p-[20px]">
-                                        <p className={`${serif} text-[11px] tracking-[0.08em] text-[#5a615d]`}>{hero.eyebrow}</p>
-                                        <p className={`${serif} mt-[6px] text-[22px] leading-[1.15] text-[#111] sm:text-[26px]`}>
-                                            {hero.headline} <b className="text-[#4a9b8e]">{hero.highlight}</b>.
-                                        </p>
-                                        <p className={`${serif} mt-[8px] max-w-[460px] text-[13px] text-[#333]`}>{hero.subtext}</p>
-                                        <div className="mt-[14px] flex flex-wrap items-center gap-[16px]">
-                                            <span className={`${serif} inline-flex h-[34px] items-center rounded-[6px] bg-[#181c3b] px-[16px] text-[12px] text-white`}>{hero.ctaLabel}</span>
-                                            <span className={`${serif} text-[12px] text-black/70 underline`}>{hero.linkLabel}</span>
+
+                                    {/* Live preview: same banner + left fade as the client site */}
+                                    <p className={`${inter} mb-[8px] mt-[20px] text-[12px] font-bold text-[#666]`}>Preview (what clients will see)</p>
+                                    <div
+                                        className={`relative isolate overflow-hidden rounded-[8px] border border-[#e8e8e8] ${heroImageSrc ? "bg-[#faf9f6]" : "bg-[#f1f6f3]"}`}
+                                    >
+                                        {heroImageSrc && (
+                                            <>
+                                                <img
+                                                    src={heroImageSrc}
+                                                    alt="Hero preview"
+                                                    className="absolute inset-0 -z-[2] h-full w-full object-cover object-[72%_center] sm:object-right"
+                                                />
+                                                <div
+                                                    className="absolute inset-0 -z-[1] bg-[linear-gradient(90deg,#faf9f6_0%,rgba(250,249,246,0.94)_28%,rgba(250,249,246,0.6)_46%,rgba(250,249,246,0.15)_68%,rgba(250,249,246,0)_85%)] max-sm:bg-[linear-gradient(180deg,rgba(250,249,246,0.94)_0%,rgba(250,249,246,0.82)_55%,rgba(250,249,246,0.4)_100%)]"
+                                                    aria-hidden="true"
+                                                />
+                                            </>
+                                        )}
+                                        <div className="relative z-10 max-w-[380px] px-5 py-8 sm:px-8 sm:py-10">
+                                            <p className={`${serif} text-[10px] tracking-[0.08em] text-[#5a615d]`}>{hero.eyebrow}</p>
+                                            <p className={`${serif} mt-[6px] text-[22px] leading-[1.15] text-[#111] sm:text-[26px]`}>
+                                                {hero.headline} <b className="text-[#4a9b8e]">{hero.highlight}</b>.
+                                            </p>
+                                            <p className={`${serif} mt-[8px] text-[12px] leading-[1.5] text-[#333]`}>{hero.subtext}</p>
+                                            <div className="mt-[14px] flex flex-wrap items-center gap-[16px]">
+                                                <span className={`${serif} inline-flex h-[34px] items-center rounded-[6px] bg-[#181c3b] px-[16px] text-[12px] text-white`}>{hero.ctaLabel}</span>
+                                                <span className={`${serif} text-[12px] text-black/70 underline`}>{hero.linkLabel}</span>
+                                            </div>
                                         </div>
                                     </div>
                                 </Card>

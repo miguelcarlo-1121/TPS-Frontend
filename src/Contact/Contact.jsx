@@ -13,6 +13,7 @@ import { apiFetch, getUser } from "../auth";
 import echo from "../echo";
 import { Search, Plus, X, Phone, Video } from "lucide-react"; 
 import VideoCall from "../components/VideoCall"; // Import VideoCall
+import SkeletonBlock from "../components/SkeletonBlock";
 
 const avatarWrap = "size-11 shrink-0 overflow-hidden rounded-full bg-[#aac6b7]";
 const avatarWrapLg = "size-14 shrink-0 overflow-hidden rounded-full bg-[#aac6b7]";
@@ -23,10 +24,13 @@ function AvatarFallback() {
 }
 
 export default function Contact() {
+  const currentUser = getUser();
   const [allUsers, setAllUsers] = useState([]);
   const [recentChats, setRecentChats] = useState([]);
   const [activeChat, setActiveChat] = useState(null);
   const [messages, setMessages] = useState([]);
+  const [contactsLoading, setContactsLoading] = useState(Boolean(currentUser));
+  const [messagesLoading, setMessagesLoading] = useState(Boolean(currentUser));
   const [message, setMessage] = useState("");
   const [sendError, setSendError] = useState("");
   
@@ -39,11 +43,14 @@ export default function Contact() {
   const [callChannel, setCallChannel] = useState("");
 
   const messagesEndRef = useRef(null);
-  const currentUser = getUser(); 
 
   // 1. Kunin ang lahat ng users para sa "New Message"
   useEffect(() => {
-    if (!currentUser) return;
+    if (!currentUser) {
+      setContactsLoading(false);
+      setMessagesLoading(false);
+      return;
+    }
     apiFetch("/messages/contacts")
       .then((data) => {
         setAllUsers(data);
@@ -52,16 +59,19 @@ export default function Contact() {
           setRecentChats([data[0]]);
         }
       })
-      .catch((err) => console.error("Failed to load contacts", err));
+      .catch((err) => console.error("Failed to load contacts", err))
+      .finally(() => setContactsLoading(false));
   }, [currentUser]);
 
   // 2. Load Existing Messages
   useEffect(() => {
     if (!currentUser || !activeChat) return;
+    setMessagesLoading(true);
     setSendError("");
     apiFetch(`/messages?contact_id=${activeChat}`)
       .then((data) => setMessages(data))
-      .catch((err) => setSendError("Could not load messages."));
+      .catch((err) => setSendError("Could not load messages."))
+      .finally(() => setMessagesLoading(false));
   }, [activeChat, currentUser]);
 
   // 3. Real-time Listener
@@ -152,7 +162,20 @@ export default function Contact() {
                   </button>
                 </div>
                 <div className="flex-1 overflow-y-auto">
-                  {recentChats.length === 0 ? (
+                  {contactsLoading ? (
+                    <div className="grid gap-2 p-4" role="status" aria-label="Loading conversations">
+                      <span className="sr-only">Loading conversations…</span>
+                      {[0, 1, 2].map((item) => (
+                        <div key={item} className="flex items-center gap-3 px-2 py-3">
+                          <SkeletonBlock className="size-11 shrink-0 rounded-full" />
+                          <div className="grid flex-1 gap-2">
+                            <SkeletonBlock className="h-3 w-32 rounded" />
+                            <SkeletonBlock className="h-3 w-20 rounded" />
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : recentChats.length === 0 ? (
                      <p className="p-6 text-sm text-gray-500">No active chats.</p>
                   ) : (
                     recentChats.map((c) => (
@@ -216,7 +239,16 @@ export default function Contact() {
                   </header>
 
                   <div className="flex-1 overflow-y-auto bg-[#fafafa] p-6 flex flex-col gap-4">
-                    {messages.length === 0 ? (
+                    {messagesLoading && messages.length === 0 ? (
+                      <div className="mt-auto grid gap-4" role="status" aria-label="Loading messages">
+                        <span className="sr-only">Loading messages…</span>
+                        {[0, 1, 2].map((item) => (
+                          <div key={item} className={`flex ${item % 2 ? "justify-end" : "justify-start"}`}>
+                            <SkeletonBlock className={`h-16 w-3/5 rounded-2xl ${item % 2 ? "rounded-br-sm" : "rounded-bl-sm"}`} />
+                          </div>
+                        ))}
+                      </div>
+                    ) : messages.length === 0 ? (
                       <div className="m-auto max-w-sm rounded-2xl border border-dashed border-[#b6d2c4] bg-white px-6 py-10 text-center">
                         <p className="m-0 font-serif text-base text-[#3d5c52]">No messages yet</p>
                         <p className="m-0 mt-2 text-sm text-[#666]">
@@ -302,7 +334,20 @@ export default function Contact() {
             </div>
 
             <div className="flex-1 overflow-y-auto p-2">
-              {filteredUsers.length === 0 ? (
+              {contactsLoading ? (
+                <div className="grid gap-3 p-3" role="status" aria-label="Loading users">
+                  <span className="sr-only">Loading users…</span>
+                  {[0, 1, 2].map((item) => (
+                    <div key={item} className="flex items-center gap-3 rounded-xl p-3">
+                      <SkeletonBlock className="size-11 shrink-0 rounded-full" />
+                      <div className="grid flex-1 gap-2">
+                        <SkeletonBlock className="h-3 w-32 rounded" />
+                        <SkeletonBlock className="h-3 w-20 rounded" />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : filteredUsers.length === 0 ? (
                 <p className="text-center text-gray-500 py-8 text-sm">No users found.</p>
               ) : (
                 filteredUsers.map((u) => (

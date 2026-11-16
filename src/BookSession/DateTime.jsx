@@ -6,6 +6,8 @@ import { apiFetch } from "../auth";
 import StepRail from "./StepRail";
 import BookingSummary from "./BookingSummary";
 import { useBooking } from "./bookingContext";
+import { getServiceProviderDisplay } from "./serviceProviderDisplay";
+import SkeletonBlock from "../components/SkeletonBlock";
 
 const pageShell = "font-sans text-black bg-tf-bg overflow-x-hidden antialiased";
 const mainPad = "py-12 pb-24 max-[720px]:py-7 max-[720px]:pb-16 bg-tf-bg";
@@ -533,6 +535,11 @@ export default function DateTime() {
     isResched && reschedule.psychologistId
       ? { id: reschedule.psychologistId, name: reschedule.psychologist }
       : booking.psychologist;
+  const providerDisplay = getServiceProviderDisplay(
+    serviceId,
+    selectedService?.name,
+    pickedPsych?.name || "To be set"
+  );
 
   const heading = showPsychPicker
     ? pFirst
@@ -544,10 +551,7 @@ export default function DateTime() {
 
   const summaryRows = [
     { label: "SERVICE", value: service?.name || "—" },
-    {
-      label: "PSYCHOLOGIST",
-      value: isPsycho ? pickedPsych?.name || "To be set" : "Assigned by the clinic",
-    },
+    { label: providerDisplay.summaryLabel, value: providerDisplay.value },
     {
       label: "DATE & TIME",
       value:
@@ -647,7 +651,24 @@ export default function DateTime() {
               {/* ---------- Psychologist picker ---------- */}
               {showPsychPicker && (
                 <div className="mt-5">
-                  {psychLoading && <p className="m-0 text-sm text-[#666]">Loading psychologists…</p>}
+                  {psychLoading && (
+                    <div className="grid grid-cols-[repeat(auto-fill,minmax(240px,1fr))] gap-[18px] max-[720px]:grid-cols-1" role="status" aria-label="Loading psychologists">
+                      <span className="sr-only">Loading psychologists…</span>
+                      {[0, 1].map((item) => (
+                        <div key={item} className="rounded-2xl border border-black/10 bg-white p-5">
+                          <div className="flex items-center gap-4">
+                            <SkeletonBlock className="size-16 shrink-0 rounded-full" />
+                            <div className="grid flex-1 gap-2">
+                              <SkeletonBlock className="h-4 w-3/4 rounded" />
+                              <SkeletonBlock className="h-3 w-1/2 rounded" />
+                            </div>
+                          </div>
+                          <SkeletonBlock className="mt-4 h-3 w-full rounded" />
+                          <SkeletonBlock className="mt-2 h-3 w-4/5 rounded" />
+                        </div>
+                      ))}
+                    </div>
+                  )}
                   {!psychLoading && psychList.length === 0 && (
                     <p className="m-0 text-sm text-[#666]">
                       {pFirst
@@ -706,7 +727,7 @@ export default function DateTime() {
                         <span key={i}>{d}</span>
                       ))}
                     </div>
-                    <div className={`flex flex-col gap-1.5 ${daysLoading ? "opacity-60" : ""}`}>
+                    <div className="flex flex-col gap-1.5">
                       {weeks.map((week, wi) => (
                         <div key={wi} className="grid grid-cols-7 gap-1.5">
                           {week.map((d, di) => {
@@ -729,7 +750,7 @@ export default function DateTime() {
                                   .join(" ")}
                                 onClick={() => selectDay(d)}
                               >
-                                {d}
+                                {daysLoading ? <SkeletonBlock className="size-6 rounded-full" /> : d}
                               </button>
                             );
                           })}
@@ -777,7 +798,19 @@ export default function DateTime() {
                         </p>
 
                         {slotsLoading ? (
-                          <p className="mt-4 text-sm text-[#666]">Loading time slots…</p>
+                          <div className="mt-4 space-y-5" role="status" aria-label="Loading time slots">
+                            <span className="sr-only">Loading time slots…</span>
+                            {[0, 1].map((group) => (
+                              <div key={group}>
+                                <SkeletonBlock className="mb-2 h-3 w-20 rounded" />
+                                <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
+                                  {[0, 1, 2, 3].map((slot) => (
+                                    <SkeletonBlock key={slot} className="h-10 rounded-lg" />
+                                  ))}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
                         ) : slots.length === 0 ? (
                           <p className="mt-4 text-sm text-[#666]">
                             No open time slots left on this date. Please choose another day.

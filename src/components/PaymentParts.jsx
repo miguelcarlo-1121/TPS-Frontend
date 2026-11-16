@@ -168,12 +168,11 @@ export function PaymentRow({ data, onOpen }) {
 
 /* ---------- Modal ---------- */
 const QUICK_REPLIES = [
-  ["Number mismatch", "The sender number you entered does not match the one in your proof of payment."],
   ["Wrong amount", "The amount in your proof of payment does not match the amount due."],
-  ["Reference mismatch", "The reference number you entered does not match your receipt."],
   ["Blurry receipt", "Your receipt is blurry or cut off. Please upload a clear, full screenshot."],
   ["Not received", "We could not find this payment in our account yet. Please check and send it again."],
   ["Wrong method", "The receipt shows a different payment method than the one you selected."],
+  ["Duplicate receipt", "This proof of payment has already been used in a previous booking. Please upload a new, unique screenshot."],
 ];
 
 const BALANCE_REPLIES = [
@@ -240,8 +239,8 @@ export function ReceiptModal({ p, base, onClose, onUpdated }) {
     ["Service", p.service_name],
     ["Schedule", schedule],
     ["Method", p.method],
-    ["Sender number", p.wallet_number],
-    ["Reference no.", p.reference_number],
+    ["Sender number", p.wallet_number || "See receipt image"],
+    ["Reference no.", p.reference_number || "See receipt image"],
     ["Session fee", peso(p.total_amount)],
     [p.balance_paid ? "Downpayment" : "Amount paid", peso(p.downpayment_amount ?? p.amount_paid)],
     ["Balance", p.balance_paid ? "Paid" : peso(p.balance)],

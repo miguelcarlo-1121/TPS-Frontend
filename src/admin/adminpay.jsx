@@ -4,6 +4,7 @@ import AdminNavigation from "./adminnavigation";
 import ProfileMenu from "../components/ProfileMenu";
 import { apiFetch } from "../auth";
 import { peso } from "../components/payUtils";
+import SkeletonBlock from "../components/SkeletonBlock";
 import {
   PaymentRow as SharedPaymentRow,
   ReceiptModal as SharedReceiptModal,
@@ -169,10 +170,11 @@ export default function PaymentDashboard() {
 
         {/* Stat cards */}
         <section className="mt-[34px] grid grid-cols-1 gap-[29px] md:grid-cols-2 lg:grid-cols-4">
-          <StatCard variant="dark" title="VERIFIED PAYMENTS" value={peso(stats?.verified_total)} subtitle="Total verified" />
-          <StatCard variant="warn" title="RECEIPTS TO VERIFY" value={stats?.to_verify ?? 0} subtitle="Waiting for review" />
-          <StatCard title="BALANCE DUE" value={peso(stats?.balance_due)} subtitle="Balance due from downpayments" />
+          <StatCard loading={loading} variant="dark" title="VERIFIED PAYMENTS" value={peso(stats?.verified_total)} subtitle="Total verified" />
+          <StatCard loading={loading} variant="warn" title="RECEIPTS TO VERIFY" value={stats?.to_verify ?? 0} subtitle="Waiting for review" />
+          <StatCard loading={loading} title="BALANCE DUE" value={peso(stats?.balance_due)} subtitle="Balance due from downpayments" />
           <StatCard
+            loading={loading}
             title="PAYMENT SUMMARY"
             value={`${stats?.full_count ?? 0} / ${stats?.down_count ?? 0}`}
             subtitle="Full payments / downpayments"
@@ -215,7 +217,23 @@ export default function PaymentDashboard() {
         {error && (
           <p className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{error}</p>
         )}
-        {loading && <p className={`${serif} text-sm text-[#666]`}>Loading payments…</p>}
+        {loading && (
+          <div className="space-y-3" aria-busy="true">
+            {[0, 1, 2].map((row) => (
+              <div key={row} className="rounded-[10px] border border-[#d8dedb] bg-white p-5">
+                <SkeletonBlock className="h-3 w-24 rounded" />
+                <div className="mt-4 flex items-center gap-3">
+                  <SkeletonBlock className="size-10 shrink-0 rounded-full" />
+                  <div className="flex-1">
+                    <SkeletonBlock className="h-4 w-44 max-w-full rounded" />
+                    <SkeletonBlock className="mt-2 h-3 w-64 max-w-full rounded" />
+                  </div>
+                  <SkeletonBlock className="h-8 w-20 rounded-md" />
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
         {!loading && !error && groups.length === 0 && (
           <p className={`${serif} text-sm text-[#666]`}>No payments yet.</p>
         )}
@@ -274,7 +292,7 @@ function Group({ label, items, onOpen }) {
   );
 }
 
-function StatCard({ title, value, subtitle, variant = "light" }) {
+function StatCard({ title, value, subtitle, variant = "light", loading = false }) {
   const base =
     "h-[140px] overflow-hidden border px-[23px] py-[22px] rounded-tl-[18px] rounded-tr-[7px] rounded-br-[18px] rounded-bl-[7px]";
   const styles = {
@@ -289,7 +307,9 @@ function StatCard({ title, value, subtitle, variant = "light" }) {
   return (
     <div className={`${base} ${styles[variant]}`}>
       <div className={`${inter} text-[11px] font-bold ${label}`}>{title}</div>
-      <div className={`${inter} mt-[14px] text-[32px] font-bold leading-none ${num}`}>{value}</div>
+      <div className={`${inter} mt-[14px] text-[32px] font-bold leading-none ${num}`}>
+        {loading ? <SkeletonBlock className="h-8 w-24 rounded" /> : value}
+      </div>
       <p className={`${inter} mt-[12px] text-[11px] font-bold ${sub}`}>{subtitle}</p>
     </div>
   );

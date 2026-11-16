@@ -5,6 +5,7 @@ import ConsentViewer from "../components/ConsentViewer";
 import ProfileMenu from "../components/ProfileMenu";
 import { apiFetch } from "../auth";
 import { peso, to12 } from "../components/payUtils";
+import SkeletonBlock from "../components/SkeletonBlock";
 
 const FONT_CSS = `@import url('https://fonts.googleapis.com/css2?family=Inknut+Antiqua:wght@600&family=Inria+Serif:wght@400;700&family=Inter:wght@400;600;700&display=swap');`;
 
@@ -323,6 +324,36 @@ const DayHeading = ({ children }) => (
     </div>
 );
 
+function AppointmentSkeleton() {
+    return (
+        <div className="space-y-[22px]" aria-busy="true">
+            {[0, 1, 2].map((group) => (
+                <section key={group}>
+                    <div className="mb-[16px] flex items-center gap-[14px]">
+                        <SkeletonBlock className="h-4 w-24 rounded-md" />
+                        <SkeletonBlock className="h-px flex-1 rounded" />
+                    </div>
+                    <div className="flex flex-col gap-[22px]">
+                        {[0, 1].map((row) => (
+                            <div key={row} className="rounded-[10px] border border-[#c7b6b6] bg-white p-[16px] sm:p-[20px]">
+                                <SkeletonBlock className="h-4 w-40 rounded-md" />
+                                <SkeletonBlock className="mt-3 h-3 w-56 max-w-full rounded-md" />
+                                <div className="mt-5 flex flex-wrap items-center justify-between gap-4">
+                                    <SkeletonBlock className="h-8 w-40 rounded-md" />
+                                    <div className="flex gap-2">
+                                        <SkeletonBlock className="h-7 w-20 rounded-md" />
+                                        <SkeletonBlock className="h-7 w-24 rounded-md" />
+                                    </div>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                </section>
+            ))}
+        </div>
+    );
+}
+
 /* ------------------------------------------------------------------ */
 /*  Page                                                               */
 /* ------------------------------------------------------------------ */
@@ -501,7 +532,9 @@ export default function AffiliateAppointment() {
                                 className={`h-[84px] cursor-pointer rounded-tl-[18px] rounded-tr-[7px] rounded-br-[18px] rounded-bl-[7px] border border-[#2020203d] px-[19px] pt-[9px] text-left transition-colors ${active ? "bg-[#4a9b8e78]" : "bg-white hover:bg-[#4a9b8e22]"
                                     }`}
                             >
-                                <div className={`${serif} text-[24px] font-bold leading-[1.2] text-[#2f4a42]`}>{counts[key] ?? 0}</div>
+                                {busyLoading
+                                    ? <SkeletonBlock className="mb-1 h-[29px] w-12 rounded-md" />
+                                    : <div className={`${serif} text-[24px] font-bold leading-[1.2] text-[#2f4a42]`}>{counts[key] ?? 0}</div>}
                                 <div className={`${serif} text-[14px] font-bold leading-[1.1] text-[#2f4a42]`}>{label}</div>
                             </button>
                         );
@@ -530,8 +563,8 @@ export default function AffiliateAppointment() {
                 )}
 
                 {/* Day groups */}
-                <div className="mt-[26px]">
-                    {busyLoading && <p className={`${serif} text-sm text-[#666]`}>Loading appointments…</p>}
+                <div className="mt-[26px]" aria-busy={busyLoading || undefined}>
+                    {busyLoading && <AppointmentSkeleton />}
 
                     {groups.map((g) => (
                         <section key={g.label} className="mb-[8px]">

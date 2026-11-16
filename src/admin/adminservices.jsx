@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import AdminNavigation from "./adminnavigation";
 import ProfileMenu from "../components/ProfileMenu";
+import SkeletonBlock from "../components/SkeletonBlock";
 import { apiFetch, API_URL, getToken } from "../auth";
 import { peso } from "../components/payUtils";
 
@@ -808,7 +809,16 @@ function AssessmentTypesPanel({ onGoToPayment }) {
                 </div>
             )}
 
-            {types === null && <p className={`${serif} text-[11px] text-[#888]`}>Loading…</p>}
+            {types === null && (
+                <div className="grid gap-[8px]" aria-busy="true">
+                    {[0, 1, 2].map((row) => (
+                        <div key={row} className="rounded-[6px] border border-[#d8dedb] bg-white p-[12px]">
+                            <SkeletonBlock className="h-3 w-36 rounded" />
+                            <SkeletonBlock className="mt-2 h-2.5 w-56 max-w-full rounded" />
+                        </div>
+                    ))}
+                </div>
+            )}
             {types !== null && types.length === 0 && !adding && (
                 <p className={`${serif} text-[11px] text-[#888] italic`}>No assessment types yet. Add one above.</p>
             )}
@@ -1020,7 +1030,28 @@ export default function AdminServices() {
                         {loadError}
                     </p>
                 )}
-                {!services && !loadError && <p className={`${serif} mt-[24px] text-sm text-[#666]`}>Loading…</p>}
+                {!services && !loadError && (
+                    <div className="mt-[24px] grid grid-cols-1 gap-[16px] sm:mt-[34px] md:grid-cols-2 md:gap-[20px] xl:grid-cols-3 xl:gap-[29px]" aria-busy="true">
+                        {[0, 1, 2].map((card) => (
+                            <section key={card} className="rounded-[12px] border border-[#d8dedb] bg-white p-[20px] sm:p-[24px]">
+                                <div className="flex items-start justify-between gap-3 border-b border-[#e8eeeb] pb-[14px]">
+                                    <div className="flex-1">
+                                        <SkeletonBlock className="h-5 w-40 max-w-full rounded" />
+                                        <SkeletonBlock className="mt-3 h-3 w-36 rounded" />
+                                    </div>
+                                    <SkeletonBlock className="h-6 w-11 rounded-full" />
+                                </div>
+                                <SkeletonBlock className="mt-4 h-3 w-full rounded" />
+                                <SkeletonBlock className="mt-2 h-3 w-5/6 rounded" />
+                                <SkeletonBlock className="mt-2 h-3 w-2/3 rounded" />
+                                <div className="mt-6 grid grid-cols-2 gap-3">
+                                    <SkeletonBlock className="h-9 rounded-md" />
+                                    <SkeletonBlock className="h-9 rounded-md" />
+                                </div>
+                            </section>
+                        ))}
+                    </div>
+                )}
 
                 {services && services.length === 0 && (
                     <section className="mt-[24px] rounded-[10px] border border-[#c7b6b6] bg-white px-[16px] py-[48px] text-center sm:mt-[34px] sm:px-[24px] sm:py-[64px]">

@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import AdminNavigation from "./adminnavigation";
 import { Logo, Photo } from "../components/Layout";
 import ProfileMenu from "../components/ProfileMenu";
+import SkeletonBlock from "../components/SkeletonBlock";
 import { apiFetch } from "../auth";
 import { peso, to12 } from "../components/payUtils";
 
@@ -442,11 +443,18 @@ const CalendarCard = () => {
                     <span key={i}>{x}</span>
                 ))}
             </div>
-            <div className={`mt-2 flex flex-col gap-1.5 ${loading ? "opacity-60" : ""}`}>
+            <div className="mt-2 flex flex-col gap-1.5" aria-busy={loading}>
                 {weeks.map((week, wi) => (
                     <div key={wi} className="grid grid-cols-7 gap-1.5">
                         {week.map((d, di) => {
                             if (!d) return <span key={di} className="block h-[42px]" />;
+                            if (loading) {
+                                return (
+                                    <div key={di} className="grid h-[42px] place-items-center rounded-[12px] bg-white">
+                                        <SkeletonBlock className="h-4 w-4 rounded-full" />
+                                    </div>
+                                );
+                            }
                             const n = (byDay[d] || []).length;
                             const sel = selected === d;
                             return (
@@ -712,6 +720,76 @@ const RecentActivity = ({ d }) => {
     );
 };
 
+function DashboardSkeleton() {
+    return (
+        <div aria-busy="true">
+            <div className="mt-[24px] grid grid-cols-1 gap-[12px] sm:mt-[34px] sm:grid-cols-2 sm:gap-[16px] xl:grid-cols-4 xl:gap-[29px]">
+                {[0, 1, 2, 3].map((card) => (
+                    <div key={card} className={`${statCardBase} min-h-[140px] bg-white`}>
+                        <SkeletonBlock className="h-3 w-36 rounded" />
+                        <SkeletonBlock className="mt-5 h-8 w-28 rounded" />
+                        <SkeletonBlock className="mt-4 h-3 w-24 rounded" />
+                    </div>
+                ))}
+            </div>
+            <div className="mt-[24px] grid grid-cols-1 gap-[16px] xl:grid-cols-[1fr_324px] xl:gap-[24px]">
+                <Card className="min-h-[320px] p-[20px]">
+                    <SkeletonBlock className="h-5 w-40 rounded" />
+                    <SkeletonBlock className="mt-3 h-3 w-56 rounded" />
+                    <div className="mt-8 flex h-48 items-end gap-3 border-b border-[#e8e8e8] px-2">
+                        {["h-1/3", "h-2/3", "h-1/2", "h-3/4", "h-1/2", "h-full"].map((height, i) => (
+                            <SkeletonBlock key={i} className={`flex-1 rounded-t ${height}`} />
+                        ))}
+                    </div>
+                </Card>
+                <Card className="min-h-[320px] p-[20px]">
+                    <SkeletonBlock className="h-5 w-32 rounded" />
+                    {[0, 1, 2, 3].map((row) => (
+                        <div key={row} className="mt-6">
+                            <SkeletonBlock className="h-3 w-40 rounded" />
+                            <SkeletonBlock className="mt-3 h-2 w-full rounded" />
+                        </div>
+                    ))}
+                </Card>
+            </div>
+            <div className="mt-[16px] grid grid-cols-1 gap-[16px] xl:grid-cols-[570fr_412fr] xl:gap-[27px]">
+                <Card className="min-h-[464px] p-[20px]">
+                    <SkeletonBlock className="h-5 w-40 rounded" />
+                    <SkeletonBlock className="mt-3 h-3 w-56 rounded" />
+                    <div className="mt-6 grid grid-cols-7 gap-2">
+                        {Array.from({ length: 35 }, (_, i) => <SkeletonBlock key={i} className="h-10 rounded-lg" />)}
+                    </div>
+                </Card>
+                <Card className="min-h-[464px] p-[20px]">
+                    <SkeletonBlock className="h-5 w-40 rounded" />
+                    {[0, 1, 2, 3, 4].map((row) => (
+                        <div key={row} className="mt-6 flex items-center gap-3">
+                            <SkeletonBlock className="size-9 rounded-full" />
+                            <div className="flex-1">
+                                <SkeletonBlock className="h-3 w-36 rounded" />
+                                <SkeletonBlock className="mt-2 h-3 w-24 rounded" />
+                            </div>
+                        </div>
+                    ))}
+                </Card>
+            </div>
+            <div className="mt-[16px] grid grid-cols-1 items-start gap-[14px] md:grid-cols-2 xl:grid-cols-3">
+                {[0, 1, 2].map((card) => (
+                    <Card key={card} className="min-h-[263px] p-[20px]">
+                        <SkeletonBlock className="h-5 w-36 rounded" />
+                        {[0, 1, 2, 3].map((row) => (
+                            <div key={row} className="mt-5 flex items-center gap-3">
+                                <SkeletonBlock className="size-8 rounded-full" />
+                                <SkeletonBlock className="h-3 flex-1 rounded" />
+                            </div>
+                        ))}
+                    </Card>
+                ))}
+            </div>
+        </div>
+    );
+}
+
 /* ------------------------------------------------------------------ */
 /*  Page                                                               */
 /* ------------------------------------------------------------------ */
@@ -754,25 +832,31 @@ export default function AdminDashboard() {
                     <p className="mb-0 mt-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{error}</p>
                 )}
 
-                <StatCards d={data} />
+                {!data && !error ? (
+                    <DashboardSkeleton />
+                ) : (
+                    <>
+                        <StatCards d={data} />
 
-                <div className="mt-[24px] grid grid-cols-1 gap-[16px] sm:mt-[32px] xl:mt-[41px] xl:grid-cols-[1fr_324px] xl:gap-[24px]">
-                    <MonthlyIncome d={data} />
-                    <Earnings d={data} />
-                </div>
+                        <div className="mt-[24px] grid grid-cols-1 gap-[16px] sm:mt-[32px] xl:mt-[41px] xl:grid-cols-[1fr_324px] xl:gap-[24px]">
+                            <MonthlyIncome d={data} />
+                            <Earnings d={data} />
+                        </div>
 
-                <div className="mt-[16px] grid grid-cols-1 gap-[16px] sm:mt-[24px] xl:mt-[28px] xl:grid-cols-[570fr_412fr] xl:gap-[27px]">
-                    <CalendarCard />
-                    <Today d={data} />
-                </div>
+                        <div className="mt-[16px] grid grid-cols-1 gap-[16px] sm:mt-[24px] xl:mt-[28px] xl:grid-cols-[570fr_412fr] xl:gap-[27px]">
+                            <CalendarCard />
+                            <Today d={data} />
+                        </div>
 
-                <div className="mt-[16px] grid grid-cols-1 items-start gap-[14px] sm:mt-[24px] md:grid-cols-2 xl:mt-[26px] xl:grid-cols-3">
-                    <IncomeByService d={data} />
-                    <YourSessions d={data} />
-                    <div className="md:col-span-2 xl:col-span-1">
-                        <RecentActivity d={data} />
-                    </div>
-                </div>
+                        <div className="mt-[16px] grid grid-cols-1 items-start gap-[14px] sm:mt-[24px] md:grid-cols-2 xl:mt-[26px] xl:grid-cols-3">
+                            <IncomeByService d={data} />
+                            <YourSessions d={data} />
+                            <div className="md:col-span-2 xl:col-span-1">
+                                <RecentActivity d={data} />
+                            </div>
+                        </div>
+                    </>
+                )}
             </main>
         </div>
     );

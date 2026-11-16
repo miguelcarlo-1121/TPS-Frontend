@@ -6,6 +6,8 @@ import { peso, to12, resizeToJpeg } from "../components/payUtils";
 import StepRail from "./StepRail";
 import BookingSummary from "./BookingSummary";
 import { useBooking } from "./bookingContext";
+import { getServiceProviderDisplay } from "./serviceProviderDisplay";
+import SkeletonBlock from "../components/SkeletonBlock";
 
 const pageShell = "font-sans text-black bg-tf-bg overflow-x-hidden antialiased";
 const mainPad = "py-12 pb-24 max-[720px]:py-7 max-[720px]:pb-16 bg-tf-bg";
@@ -53,10 +55,9 @@ export default function ReviewAndPay() {
   const [optError, setOptError] = useState("");
   const [methodId, setMethodId] = useState(null);
   const [type, setType] = useState(draft?.type || "full");
-  const [walletNumber, setWalletNumber] = useState(draft?.wallet_number || "");
-  const [refNum, setRefNum] = useState(draft?.reference_number || "");
   const [receipt, setReceipt] = useState(null);
   const [submitting, setSubmitting] = useState(false);
+  const [isDuplicate, setIsDuplicate] = useState(false);
   const [error, setError] = useState("");
   const [showDownWarn, setShowDownWarn] = useState(false);
   const [confirmingDownSelection, setConfirmingDownSelection] = useState(false);
@@ -112,8 +113,6 @@ export default function ReviewAndPay() {
     holdActive &&
     price > 0 &&
     !!method &&
-    walletNumber.length === 11 &&
-    /^[A-Za-z0-9-]{6,60}$/.test(refNum) &&
     !!receipt;
 
   const d = booking.date;
@@ -130,16 +129,22 @@ export default function ReviewAndPay() {
     ? new Date(d.year, d.month, d.day).toLocaleDateString("en-US", { month: "short", day: "numeric" })
     : "";
 
-  const psychName = isPsycho ? booking.psychologist?.name || "—" : "Assigned by the clinic";
+  const providerDisplay = getServiceProviderDisplay(
+    serviceId,
+    service?.name,
+    booking.psychologist?.name || "—"
+  );
+  const psychName = providerDisplay.value;
 
   const summaryRows = [
     { label: "SERVICE", value: service?.name || "—" },
-    { label: "PSYCHOLOGIST", value: psychName },
+    { label: providerDisplay.summaryLabel, value: psychName },
     { label: "DATE & TIME", value: d && booking.timeStart ? `${shortDate} · ${timeText}` : "To be set" },
   ];
 
   const commitAndGo = async () => {
     setError("");
+    setIsDuplicate(false);
     setSubmitting(true);
     try {
       const image = await resizeToJpeg(receipt, 1280, 0.85);
@@ -149,8 +154,6 @@ export default function ReviewAndPay() {
           hold_id: booking.holdId,
           type: effectiveType,
           method_id: method.id,
-          wallet_number: walletNumber,
-          reference_number: refNum,
           receipt: image,
         }),
       });
@@ -160,7 +163,6 @@ export default function ReviewAndPay() {
         method: method.name,
         amountPaid: p.amount_paid,
         remaining: p.balance,
-        refNumber: refNum,
       });
       update({
         approvalStatus: "payment_pending",
@@ -168,11 +170,17 @@ export default function ReviewAndPay() {
         paymentId: p.id,
         holdId: null,
         holdExpiresAt: null,
+        resumePath: null,
         paymentDraft: null,
       });
       navigate("/book/approval", { replace: true });
     } catch (err) {
       if (err.message?.includes("session expired")) return navigate("/signin");
+      if (err.message?.toLowerCase().includes("duplicate")) {
+        setIsDuplicate(true);
+        setSubmitting(false);
+        return;
+      }
       // Expired na ang hold sa server: linisin ang naiwang hold sa context
       if (err.message?.includes("held time has expired")) {
         update({
@@ -273,6 +281,20 @@ export default function ReviewAndPay() {
               </div>
 
               <h3 className="mt-8 mb-3 font-serif text-lg font-normal text-[#202020]">Payment option</h3>
+              {!options && !optError && (
+                <div className="grid gap-3" role="status" aria-label="Loading payment options">
+                  <span className="sr-only">Loading payment options…</span>
+                  {[0, 1].map((item) => (
+                    <div key={item} className="rounded-xl border border-black/10 bg-white p-4">
+                      <div className="flex items-center justify-between gap-3">
+                        <SkeletonBlock className="h-4 w-32 rounded" />
+                        <SkeletonBlock className="h-4 w-20 rounded" />
+                      </div>
+                      <SkeletonBlock className="mt-3 h-3 w-3/4 rounded" />
+                    </div>
+                  ))}
+                </div>
+              )}
               {options && isFullPaymentOnly && (
                 <p className="m-0 mb-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
                   {service?.name || "This service"} requires full payment. Downpayment is not available.
@@ -320,6 +342,19 @@ export default function ReviewAndPay() {
               </div>
 
               <h3 className="mt-8 mb-3 font-serif text-lg font-normal text-[#202020]">Payment method</h3>
+              {!options && !optError && (
+                <div className="grid grid-cols-2 gap-3 max-[560px]:grid-cols-1" aria-hidden="true">
+                  {[0, 1].map((item) => (
+                    <div key={item} className="flex items-center gap-3 rounded-xl border border-black/10 bg-white p-4">
+                      <SkeletonBlock className="size-10 shrink-0 rounded-full" />
+                      <div className="grid flex-1 gap-2">
+                        <SkeletonBlock className="h-3 w-28 rounded" />
+                        <SkeletonBlock className="h-3 w-20 rounded" />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
               {options && methods.length === 0 && (
                 <p className="m-0 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
                   No payment method is available right now. Please contact the clinic.
@@ -404,29 +439,6 @@ export default function ReviewAndPay() {
                       {options?.note && <p className="m-0 mt-3 text-xs leading-relaxed text-[#666]">{options.note}</p>}
                     </div>
 
-                    <label className="block text-sm font-serif font-bold">
-                      Your {method.name} number
-                      <input
-                        type="tel"
-                        inputMode="numeric"
-                        maxLength={11}
-                        className={inputClass}
-                        value={walletNumber}
-                        onChange={(e) => setWalletNumber(e.target.value.replace(/\D/g, "").slice(0, 11))}
-                        placeholder={`${method.name} Number`}
-                      />
-                    </label>
-                    <label className="block text-sm font-serif font-bold">
-                      Reference number
-                      <input
-                        type="text"
-                        maxLength={60}
-                        className={inputClass}
-                        value={refNum}
-                        onChange={(e) => setRefNum(e.target.value.replace(/[^A-Za-z0-9-]/g, ""))}
-                        placeholder="Transaction / ref no."
-                      />
-                    </label>
                     <label
                       className={[
                         "flex cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border border-dashed px-4 py-6 text-center transition-colors",
@@ -444,6 +456,7 @@ export default function ReviewAndPay() {
                             return;
                           }
                           setError("");
+                          setIsDuplicate(false);
                           setReceipt(f);
                         }}
                       />
@@ -451,6 +464,15 @@ export default function ReviewAndPay() {
                       <strong className="text-sm">{receipt ? receipt.name : "Upload proof of payment"}</strong>
                       <span className="text-xs text-[#666]">PNG or JPG screenshot</span>
                     </label>
+
+                    {isDuplicate && (
+                      <div
+                        role="alert"
+                        className="rounded-xl border border-red-300 bg-red-50 px-4 py-3 text-sm text-red-800"
+                      >
+                        <strong>⚠️ Duplicate receipt detected.</strong> This screenshot has already been submitted in a previous payment. Please upload a new, unique proof of payment.
+                      </div>
+                    )}
                   </div>
                 </div>
               )}

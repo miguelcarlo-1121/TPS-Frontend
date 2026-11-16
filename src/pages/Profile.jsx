@@ -5,6 +5,7 @@ import { apiFetch } from "../auth";
 import { Avatar, displayEmail } from "../components/ProfileMenu";
 import AdminNavigation from "../admin/adminnavigation";
 import AffiliateNavigation from "../affiliate/affiliatenav";
+import SkeletonBlock from "../components/SkeletonBlock";
 
 const ROLE_LABEL = { CLIENT: "Client", AFFILIATE: "Affiliate", ADMIN: "Admin" };
 const PROVIDER_LABEL = { SYSTEM: "Email & password", GOOGLE: "Google", FACEBOOK: "Facebook" };
@@ -138,8 +139,25 @@ export default function Profile() {
 
   if (!user) {
     return (
-      <div className="grid min-h-screen place-items-center text-sm text-[#666]">
-        Loading your profile…
+      <div className="grid min-h-screen place-items-center px-5" role="status" aria-label="Loading your profile">
+        <span className="sr-only">Loading your profile…</span>
+        <div className="w-full max-w-3xl rounded-2xl border border-black/10 bg-white p-7 shadow-[0_16px_40px_-28px_rgba(0,0,0,0.35)]">
+          <div className="flex items-center gap-4">
+            <SkeletonBlock className="size-16 shrink-0 rounded-full" />
+            <div className="grid flex-1 gap-2">
+              <SkeletonBlock className="h-5 w-40 rounded" />
+              <SkeletonBlock className="h-3 w-56 max-w-full rounded" />
+            </div>
+          </div>
+          <div className="mt-8 grid gap-5 sm:grid-cols-2">
+            {[0, 1, 2, 3].map((item) => (
+              <div key={item} className="grid gap-2">
+                <SkeletonBlock className="h-3 w-28 rounded" />
+                <SkeletonBlock className="h-11 w-full rounded-lg" />
+              </div>
+            ))}
+          </div>
+        </div>
       </div>
     );
   }

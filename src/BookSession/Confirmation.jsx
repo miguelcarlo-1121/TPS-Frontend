@@ -15,6 +15,7 @@ import StepRail from "./StepRail";
 import BookingSummary from "./BookingSummary";
 import { useBooking } from "./bookingContext";
 import ReceiptModal from "../components/ReceiptModal";
+import SkeletonBlock from "../components/SkeletonBlock";
 
 const pageShell = "font-sans text-black bg-tf-bg overflow-x-hidden antialiased";
 const mainPad = "py-12 pb-24 max-[720px]:py-7 max-[720px]:pb-16 bg-tf-bg";
@@ -146,7 +147,27 @@ export default function Confirmation() {
           <div className={gridClass}>
             <Reveal className={panelClass} delay={140}>
               {loading && (
-                <p className="m-0 text-sm text-[#666]">Loading your appointment…</p>
+                <div className="grid gap-5" role="status" aria-label="Loading your appointment">
+                  <span className="sr-only">Loading your appointment…</span>
+                  <div className="flex items-center gap-4">
+                    <SkeletonBlock className="size-14 shrink-0 rounded-full" />
+                    <div className="grid flex-1 gap-2">
+                      <SkeletonBlock className="h-6 w-64 max-w-full rounded" />
+                      <SkeletonBlock className="h-3 w-3/4 rounded" />
+                    </div>
+                  </div>
+                  <div className="rounded-2xl border border-black/10 bg-[#fbfdfc] p-5">
+                    <SkeletonBlock className="mb-4 h-3 w-36 rounded" />
+                    <div className="grid gap-3">
+                      {[0, 1, 2].map((item) => (
+                        <div key={item} className="flex justify-between gap-3">
+                          <SkeletonBlock className="h-3 w-24 rounded" />
+                          <SkeletonBlock className="h-3 w-36 max-w-[60%] rounded" />
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
               )}
 
               {!loading && !ref && (

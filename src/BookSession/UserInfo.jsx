@@ -5,6 +5,8 @@ import { apiFetch } from "../auth";
 import StepRail from "./StepRail";
 import BookingSummary from "./BookingSummary";
 import { useBooking } from "./bookingContext";
+import { getServiceProviderDisplay } from "./serviceProviderDisplay";
+import SkeletonBlock from "../components/SkeletonBlock";
 
 const pageShell = "font-sans text-black bg-tf-bg overflow-x-hidden antialiased";
 const mainPad = "py-12 pb-24 max-[720px]:py-7 max-[720px]:pb-16 bg-tf-bg";
@@ -34,8 +36,11 @@ const NAME_RE = /^\p{L}[\p{L}\s.'’-]*$/u;
 const NAME_STRIP = /[^\p{L}\s.'’-]/gu;
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 const PH_MOBILE_RE = /^09\d{9}$/;
+const RELATIONSHIPS = ["Parent", "Sibling", "Spouse", "Child", "Grandparent", "Relative", "Friend", "Other"];
 
 const onlyDigits11 = (v) => v.replace(/\D/g, "").slice(0, 11);
+const knownRelationship = (value) =>
+  RELATIONSHIPS.find((relationship) => relationship !== "Other" && relationship.toLowerCase() === value.toLowerCase());
 
 function Field({ id, label, hint, error, children, className = "" }) {
   return (
@@ -63,7 +68,14 @@ export default function UserInfo() {
   const [email, setEmail] = useState(c.email ?? "");
   const [mobile, setMobile] = useState(c.mobile ?? "");
   const [emergencyName, setEmergencyName] = useState(c.emergencyName ?? "");
-  const [emergencyRelation, setEmergencyRelation] = useState(c.emergencyRelation ?? "");
+  const [emergencyRelation, setEmergencyRelation] = useState(() => {
+    const value = c.emergencyRelation ?? "";
+    return knownRelationship(value) || (value ? "Other" : "");
+  });
+  const [otherRelationship, setOtherRelationship] = useState(() => {
+    const value = c.emergencyRelation ?? "";
+    return knownRelationship(value) ? "" : value;
+  });
   const [emergencyPhone, setEmergencyPhone] = useState(c.emergencyPhone ?? "");
   const [agreed, setAgreed] = useState(false);
   const [submitted, setSubmitted] = useState(false);
@@ -86,7 +98,10 @@ export default function UserInfo() {
         setEmail(i.email || "");
         setMobile(i.mobile || "");
         setEmergencyName(i.emergency_name || "");
-        setEmergencyRelation(i.emergency_relation || "");
+        const relation = i.emergency_relation || "";
+        const known = knownRelationship(relation);
+        setEmergencyRelation(known || (relation ? "Other" : ""));
+        setOtherRelationship(known ? "" : relation);
         setEmergencyPhone(i.emergency_phone || "");
       })
       .catch(() => { })
@@ -120,11 +135,9 @@ export default function UserInfo() {
           ? "Contact name must not contain numbers."
           : "",
     emergencyRelation:
-      !emergencyRelation.trim()
+      (emergencyRelation === "Other" ? otherRelationship : emergencyRelation).trim().length < 2
         ? "Relationship is required."
-        : !NAME_RE.test(emergencyRelation.trim())
-          ? "Relationship must contain letters only."
-          : "",
+        : "",
     emergencyPhone: !PH_MOBILE_RE.test(emergencyPhone)
       ? "Enter an 11-digit mobile number (e.g. 09123456789)."
       : "",
@@ -139,7 +152,7 @@ export default function UserInfo() {
     email: email.trim().toLowerCase(),
     mobile,
     emergencyName: emergencyName.trim(),
-    emergencyRelation: emergencyRelation.trim(),
+    emergencyRelation: (emergencyRelation === "Other" ? otherRelationship : emergencyRelation).trim(),
     emergencyPhone,
   });
 
@@ -191,17 +204,16 @@ export default function UserInfo() {
         day: "numeric",
       })} · ${to12(booking.timeStart)} - ${to12(booking.timeEnd)}`
       : "To be set";
+  const providerDisplay = getServiceProviderDisplay(
+    booking.serviceId,
+    service?.name,
+    booking.psychologist?.name || "To be set"
+  );
 
   const summaryRows = [
     { label: "SERVICE", value: service?.name || "—" },
     ...(booking.serviceId === "assessment" && booking.assessmentType?.name ? [{ label: "TYPE", value: booking.assessmentType.name }] : []),
-    {
-      label: "PSYCHOLOGIST",
-      value:
-        booking.serviceId === "psychotherapy"
-          ? booking.psychologist?.name || "To be set"
-          : "Assigned by the clinic",
-    },
+    { label: providerDisplay.summaryLabel, value: providerDisplay.value },
     { label: "DATE & TIME", value: dateText },
   ];
 
@@ -226,7 +238,13 @@ export default function UserInfo() {
                 </p>
               </header>
 
-              {loadingInfo && <p className="mt-3 mb-0 text-xs text-[#666]">Loading your details…</p>}
+              {loadingInfo && (
+                <div className="mt-3 grid gap-2" role="status" aria-label="Loading your details">
+                  <span className="sr-only">Loading your details…</span>
+                  <SkeletonBlock className="h-3 w-40 rounded" />
+                  <SkeletonBlock className="h-3 w-56 max-w-full rounded" />
+                </div>
+              )}
 
               <form className="flex flex-col gap-[18px] mt-4" onSubmit={onSubmit} noValidate>
                 <p className="m-0 font-sans font-semibold text-[0.78rem] tracking-[0.1em] text-tf-teal">
@@ -239,14 +257,10 @@ export default function UserInfo() {
                       type="text"
                       autoComplete="name"
                       maxLength={150}
-                      readOnly
-                      aria-describedby="account-name-hint"
-                      className={`${inputClass} cursor-not-allowed bg-[#f4f4f4] ${err("fullName") ? inputError : ""}`}
+                      className={`${inputClass} ${err("fullName") ? inputError : ""}`}
                       value={fullName}
+                      onChange={(e) => setFullName(e.target.value.replace(NAME_STRIP, ""))}
                     />
-                    <span id="account-name-hint" className="text-xs text-[#666]">
-                      This name comes from your account and cannot be changed here.
-                    </span>
                   </Field>
                   <Field id="birthdate" label="Date of birth" error={err("birthdate")}>
                     <input
@@ -276,7 +290,7 @@ export default function UserInfo() {
                       onChange={(e) => setEmail(e.target.value.replace(/\s/g, ""))}
                     />
                   </Field>
-                  <Field id="mobile" label="Mobile number" hint="11 digits" error={err("mobile")}>
+                  <Field id="mobile" label="Mobile number" error={err("mobile")}>
                     <input
                       id="mobile"
                       type="tel"
@@ -306,20 +320,37 @@ export default function UserInfo() {
                     />
                   </Field>
                   <Field id="emRelation" label="Relationship to client" error={err("emergencyRelation")}>
-                    <input
+                    <select
                       id="emRelation"
-                      type="text"
-                      maxLength={60}
-                      placeholder="e.g. Parent, Spouse, Sibling"
-                      className={`${inputClass} ${err("emergencyRelation") ? inputError : ""}`}
+                      className={inputClass}
                       value={emergencyRelation}
-                      onChange={(e) => setEmergencyRelation(e.target.value.replace(NAME_STRIP, ""))}
-                    />
+                      onChange={(e) => {
+                        setEmergencyRelation(e.target.value);
+                        if (e.target.value !== "Other") setOtherRelationship("");
+                      }}
+                    >
+                      <option value="">Select relationship</option>
+                      {RELATIONSHIPS.map((relationship) => (
+                        <option key={relationship} value={relationship}>{relationship}</option>
+                      ))}
+                    </select>
                   </Field>
+                  {emergencyRelation === "Other" && (
+                    <Field id="emRelationOther" label="Specify relationship" error={err("emergencyRelation")}>
+                      <input
+                        id="emRelationOther"
+                        type="text"
+                        maxLength={60}
+                        placeholder="Enter relationship"
+                        className={`${inputClass} ${err("emergencyRelation") ? inputError : ""}`}
+                        value={otherRelationship}
+                        onChange={(e) => setOtherRelationship(e.target.value)}
+                      />
+                    </Field>
+                  )}
                   <Field
                     id="emMobile"
                     label="Contact phone number"
-                    hint="11 digits"
                     error={err("emergencyPhone")}
                     className="max-[720px]:col-span-1 col-span-2"
                   >

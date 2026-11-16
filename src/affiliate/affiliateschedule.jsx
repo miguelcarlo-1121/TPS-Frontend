@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo, useCallback } from "react";
 import AdminNavigation from "./affiliatenav";
 import ProfileMenu from "../components/ProfileMenu";
+import SkeletonBlock from "../components/SkeletonBlock";
 
 const FONT_CSS = `@import url('https://fonts.googleapis.com/css2?family=Inknut+Antiqua:wght@400;600;700&family=Inria+Serif:ital,wght@0,300;0,400;0,700;1,300;1,400;1,700&family=Inter:wght@400;500;600;700&display=swap');`;
 
@@ -70,11 +71,18 @@ const fmtLong = (t) => {
   const [h, m] = t.split(":").map(Number);
   return `${h % 12 === 0 ? 12 : h % 12}:${pad(m)} ${h >= 12 ? "PM" : "AM"}`;
 };
+const TIME_OPTIONS = Array.from({ length: 48 }, (_, index) => {
+  const minutes = index * 30;
+  const value = `${pad(Math.floor(minutes / 60))}:${pad(minutes % 60)}`;
+  return { value, label: fmtLong(value) };
+});
 const hoursBetween = (a, b) => {
   const [ah, am] = a.split(":").map(Number);
   const [bh, bm] = b.split(":").map(Number);
   return (bh * 60 + bm - (ah * 60 + am)) / 60;
 };
+const isFullDayUnavailable = (slot) =>
+  slot.status === "unavailable" && slot.start_time === "00:00" && slot.end_time === "23:59";
 
 const DateChip = ({ label, className = "" }) => (
   <div
@@ -98,6 +106,8 @@ export default function AffiliateSchedule() {
 
   const [view, setView] = useState({ year: today.getFullYear(), month: today.getMonth() });
   const [selectedDate, setSelectedDate] = useState(todayISO);
+  const [selectingDates, setSelectingDates] = useState(false);
+  const [selectedDates, setSelectedDates] = useState([]);
   const [slots, setSlots] = useState([]);
   const [stats, setStats] = useState({ open_slots: 0, booked: 0, pending: 0, not_available: 0 });
   const [loading, setLoading] = useState(true);
@@ -105,9 +115,13 @@ export default function AffiliateSchedule() {
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
 
-  const [availabilityMode, setAvailabilityMode] = useState("available"); // 'available' | 'not_available'
-  const [fromTime, setFromTime] = useState("09:00");
-  const [toTime, setToTime] = useState("12:00");
+  const [availabilityMode, setAvailabilityMode] = useState("available");
+  const [fromTime, setFromTime] = useState("08:00");
+  const [toTime, setToTime] = useState("17:00");
+  const [blockFromTime, setBlockFromTime] = useState("08:00");
+  const [blockToTime, setBlockToTime] = useState("09:00");
+  const selectedFromTime = availabilityMode === "blocked" ? blockFromTime : fromTime;
+  const selectedToTime = availabilityMode === "blocked" ? blockToTime : toTime;
 
   const monthKey = `${view.year}-${pad(view.month + 1)}`;
 
@@ -163,23 +177,34 @@ export default function AffiliateSchedule() {
   /* ---------- selected day info ---------- */
   const selDateObj = parseISO(selectedDate);
   const selSlots = slotsByDate[selectedDate] || [];
-  const selIsUnavailable = selSlots.some((s) => s.status === "unavailable");
   const selIsPast = selectedDate < todayISO;
   const selAvailable = selSlots.filter((s) => s.status === "available");
   const selOpenHours = selAvailable.reduce((sum, s) => sum + hoursBetween(s.start_time, s.end_time), 0);
   const selBooked = selAvailable.reduce((sum, s) => sum + (s.booked || 0), 0);
   const selRequested = selAvailable.reduce((sum, s) => sum + (s.requested || 0), 0);
   const fullDayName = DAY_FULL[selDateObj.getDay()];
-  const shortMonth = MONTHS[selDateObj.getMonth()].slice(0, 3);
 
   const handleSelectDay = (cell) => {
     if (cell.date < todayISO) return;
     setSelectedDate(cell.date);
+    if (selectingDates) {
+      setSelectedDates((dates) =>
+        dates.includes(cell.date) ? dates.filter((date) => date !== cell.date) : [...dates, cell.date]
+      );
+    } else {
+      setSelectedDates([]);
+    }
     setError("");
     setNotice("");
-    const daySlots = slotsByDate[cell.date] || [];
-    setAvailabilityMode(daySlots.some((s) => s.status === "unavailable") ? "not_available" : "available");
+    setAvailabilityMode("available");
     if (cell.other) setView({ year: parseISO(cell.date).getFullYear(), month: parseISO(cell.date).getMonth() });
+  };
+
+  const toggleDateSelection = () => {
+    setSelectingDates((selecting) => !selecting);
+    setSelectedDates([]);
+    setError("");
+    setNotice("");
   };
 
   const changeMonth = (delta) => {
@@ -192,29 +217,31 @@ export default function AffiliateSchedule() {
     setError("");
     setNotice("");
 
-    if (selectedDate < todayISO) return setError("This date has already passed.");
+    const datesToSave = selectingDates ? selectedDates : [selectedDate];
+    if (datesToSave.length === 0) return setError("Select one or more dates on the calendar.");
+    if (datesToSave.some((date) => date < todayISO)) return setError("Past dates cannot be changed.");
 
-    if (availabilityMode === "available") {
-      if (!fromTime || !toTime) return setError("Please enter both start and end time.");
-      if (fromTime >= toTime) return setError("End time must be later than start time.");
-    }
+    if (!selectedFromTime || !selectedToTime) return setError("Please enter both start and end time.");
+    if (selectedFromTime >= selectedToTime) return setError("End time must be later than start time.");
 
     setSaving(true);
     try {
       await api(`${BASE}/slots`, {
         method: "POST",
         body: JSON.stringify({
-          date: selectedDate,
+          ...(selectingDates ? { dates: datesToSave } : { date: selectedDate }),
           status: availabilityMode,
-          start_time: availabilityMode === "available" ? fromTime : null,
-          end_time: availabilityMode === "available" ? toTime : null,
+          start_time: selectedFromTime,
+          end_time: selectedToTime,
         }),
       });
       await loadSchedule();
+      setSelectedDates([]);
+      setSelectingDates(false);
       setNotice(
         availabilityMode === "available"
-          ? "Time slot added. You can add another one for this day."
-          : "Day marked as not available."
+          ? `Availability added for ${datesToSave.length} date${datesToSave.length === 1 ? "" : "s"}.`
+          : `Time blocked for walk-ins on ${datesToSave.length} date${datesToSave.length === 1 ? "" : "s"}.`
       );
       setTimeout(() => setNotice(""), 3000);
     } catch (e) {
@@ -231,6 +258,18 @@ export default function AffiliateSchedule() {
       await api(`${BASE}/slots/${id}`, { method: "DELETE" });
       await loadSchedule();
       setAvailabilityMode("available");
+    } catch (e) {
+      setError(e.message);
+    }
+  };
+
+  const handleRestoreBlockedTime = async (id) => {
+    setError("");
+    setNotice("");
+    try {
+      await api(`${BASE}/slots/${id}/restore`, { method: "POST" });
+      await loadSchedule();
+      setNotice("Availability restored for that time.");
     } catch (e) {
       setError(e.message);
     }
@@ -312,7 +351,9 @@ export default function AffiliateSchedule() {
           <div className="grid grid-cols-4 gap-[24px] mt-[34px]">
             {statCards.map((card, i) => (
               <div key={i} className="bg-white border border-[#c7b6b6] rounded-[10px] p-[20px] shadow-sm flex flex-col justify-center min-h-[96px]">
-                <div className={`${serif} text-[36px] font-bold text-[#202020] leading-none`}>{card.count}</div>
+                {loading
+                  ? <SkeletonBlock className="h-9 w-16 rounded-md" />
+                  : <div className={`${serif} text-[36px] font-bold text-[#202020] leading-none`}>{card.count}</div>}
                 <div className={`${serif} text-[14px] text-[#555] font-normal mt-[8px]`}>{card.label}</div>
               </div>
             ))}
@@ -328,11 +369,22 @@ export default function AffiliateSchedule() {
                       {MONTHS[view.month]} {view.year}
                     </h2>
                     <p className={`${serif} text-[13px] text-[#666] mt-[2px]`}>
-                      {loading ? "Loading schedule…" : "Select a date to view availability"}
+                      {loading
+                        ? <SkeletonBlock className="mt-1 h-4 w-56 max-w-full rounded-md" />
+                        : selectingDates
+                          ? "Click dates to select multiple days for availability"
+                          : "Click a date to manage its availability. Use Select for multiple dates."}
                     </p>
                   </div>
 
                   <div className="flex shrink-0 items-center gap-[8px]">
+                    <button
+                      type="button"
+                      onClick={toggleDateSelection}
+                      className="rounded-[6px] border border-[#1f6b55] bg-white px-3 py-1.5 text-[12px] font-semibold text-[#1f6b55] hover:bg-[#e3f2ee]"
+                    >
+                      {selectingDates ? "Cancel" : "Select"}
+                    </button>
                     <button
                       onClick={() => changeMonth(-1)}
                       className="w-[28px] h-[28px] rounded-full bg-[#dcf0e8] text-[#1f6b55] flex items-center justify-center hover:bg-[#cbe8dc] transition-colors cursor-pointer border-0"
@@ -360,14 +412,17 @@ export default function AffiliateSchedule() {
                   ))}
                 </div>
 
-                <div className="grid grid-cols-7 gap-[8px] mt-[10px]">
+                <div className="relative grid grid-cols-7 gap-[8px] mt-[10px]" aria-busy={loading || undefined}>
                   {cells.map((cell) => {
                     const daySlots = slotsByDate[cell.date] || [];
-                    const isUnavailable = daySlots.some((s) => s.status === "unavailable");
+                    const isUnavailable = daySlots.some(isFullDayUnavailable);
                     const availSlots = daySlots.filter((s) => s.status === "available");
+                    const blockedSlots = daySlots.filter((s) => s.status === "unavailable" && !isFullDayUnavailable(s));
                     const isAvailable = !isUnavailable && availSlots.length > 0;
                     const hasSession = availSlots.some((s) => (s.booked || 0) > 0);
-                    const isSelected = cell.date === selectedDate;
+                    const isSelected = selectingDates
+                      ? selectedDates.includes(cell.date)
+                      : cell.date === selectedDate;
                     const past = cell.date < todayISO;
 
                     let cardBg = "bg-white border-[#eef2f0] text-[#202020]";
@@ -409,12 +464,15 @@ export default function AffiliateSchedule() {
                     }
 
                     return (
-                      <div
+                      <button
+                        type="button"
                         key={cell.date}
                         onClick={() => handleSelectDay(cell)}
+                        disabled={past}
+                        aria-pressed={isSelected}
                         aria-disabled={past}
                         title={past ? "This date has passed" : isUnavailable ? "Not available" : undefined}
-                        className={`relative rounded-[8px] border p-[6px] min-h-[66px] flex flex-col items-center justify-center transition-all ${past ? "cursor-not-allowed" : "cursor-pointer hover:scale-[1.02]"
+                        className={`relative w-full rounded-[8px] border p-[6px] min-h-[66px] flex flex-col items-center justify-center transition-all ${past ? "cursor-not-allowed" : "cursor-pointer hover:scale-[1.02]"
                           } ${cardBg}${ring}`}
                       >
                         {hasSession && <span className="absolute top-[5px] w-[6px] h-[6px] rounded-full bg-[#f3b53f]" />}
@@ -444,9 +502,21 @@ export default function AffiliateSchedule() {
                         {!isUnavailable && availSlots.length > 2 && (
                           <div className={`${serif} text-[9px] leading-tight mt-[2px] ${subtextColor}`}>+{availSlots.length - 2} more</div>
                         )}
-                      </div>
+                        {!isUnavailable && blockedSlots.length > 0 && (
+                          <div className={`${serif} text-[9px] font-bold leading-tight mt-[2px] text-center ${isAvailable ? "text-[#9a4a3e]" : hoursColor}`}>
+                            {blockedSlots.length} blocked
+                          </div>
+                        )}
+                      </button>
                     );
                   })}
+                  {loading && (
+                    <div className="absolute inset-0 z-10 grid grid-cols-7 gap-[8px] bg-white">
+                      {cells.map((cell) => (
+                        <SkeletonBlock key={cell.date} className="min-h-[66px] w-full rounded-[8px]" />
+                      ))}
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -477,25 +547,34 @@ export default function AffiliateSchedule() {
                   {fullDayName}, {MONTHS[selDateObj.getMonth()]} {selDateObj.getDate()}
                 </h3>
                 <p className={`${serif} text-[13px] text-[#666] mt-[2px]`}>
-                  {selOpenHours} open hours · {selBooked} booked · {selRequested} requested
+                  {selectingDates && `${selectedDates.length} date${selectedDates.length === 1 ? "" : "s"} selected · `}
+                  {loading ? (
+                    <SkeletonBlock className="inline-block h-4 w-48 max-w-full align-middle rounded-md" />
+                  ) : (
+                    `${selOpenHours} open hours · ${selBooked} booked · ${selRequested} requested`
+                  )}
                 </p>
-
-                {selIsUnavailable && (
-                  <div className={`${serif} mt-[12px] flex items-center gap-[8px] rounded-[8px] border border-[#e2a9a1] bg-[#f6d5d0] px-[12px] py-[8px] text-[13px] text-[#7a2e22]`}>
-                    <span className="flex h-[16px] w-[16px] items-center justify-center rounded-full bg-[#c4574a]">
-                      <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="4" strokeLinecap="round">
-                        <path d="M6 6l12 12M18 6L6 18" />
-                      </svg>
-                    </span>
-                    You're not available on this date. Clients can't book it.
+                {selectingDates && selectedDates.length > 0 && (
+                  <div className="mt-2 flex flex-wrap gap-1.5" aria-label="Selected dates">
+                    {[...selectedDates].sort().map((date) => (
+                      <button
+                        key={date}
+                        type="button"
+                        onClick={() => setSelectedDates((dates) => dates.filter((item) => item !== date))}
+                        className={`${serif} rounded-full border border-[#a8dbc4] bg-[#e6f4ee] px-2.5 py-1 text-[11px] text-[#175240]`}
+                        aria-label={`Remove ${date} from selected dates`}
+                      >
+                        {parseISO(date).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })} ×
+                      </button>
+                    ))}
                   </div>
                 )}
 
-                {/* Available / Not available toggle */}
+                {/* Availability modes */}
                 <div className={`grid grid-cols-2 gap-[14px] mt-[20px] ${selIsPast ? "pointer-events-none opacity-50" : ""}`}>
                   {[
                     { key: "available", title: "Available", sub: "Client can book this date" },
-                    { key: "not_available", title: "Not available", sub: "Not available on this date" },
+                    { key: "blocked", title: "Not available", sub: "Block time for a walk-in" },
                   ].map((opt) => (
                     <div
                       key={opt.key}
@@ -523,18 +602,28 @@ export default function AffiliateSchedule() {
                   <div className={`${inter} block text-[11px] font-bold tracking-[1.5px] text-[#666] uppercase mb-[8px]`}>
                     SAVED FOR THIS DAY
                   </div>
-                  {selSlots.length === 0 ? (
+                  {loading ? (
+                    <div className="flex flex-col gap-[8px]">
+                      {[0, 1, 2].map((i) => (
+                        <SkeletonBlock key={i} className="h-10 w-full rounded-[6px]" />
+                      ))}
+                    </div>
+                  ) : selSlots.length === 0 ? (
                     <p className={`${serif} text-[13px] text-[#888]`}>Nothing saved yet. Add a time below.</p>
                   ) : (
                     <div className="flex flex-col gap-[8px]">
                       {selSlots.map((s) => (
                         <div
                           key={s.id}
-                          className={`flex items-center justify-between rounded-[6px] border px-[12px] py-[8px] ${s.status === "unavailable" ? "border-[#c9cfcd] bg-[#eef0ef]" : "border-[#a8dbc4] bg-[#e6f4ee]"
+                          className={`flex items-center justify-between rounded-[6px] border px-[12px] py-[8px] ${s.status === "unavailable" ? "border-[#e2a9a1] bg-[#fdf0ee]" : "border-[#a8dbc4] bg-[#e6f4ee]"
                             }`}
                         >
                           <span className={`${serif} text-[13px] text-[#202020]`}>
-                            {s.status === "unavailable" ? "Not available all day" : `${fmtLong(s.start_time)} – ${fmtLong(s.end_time)}`}
+                            {s.status === "unavailable"
+                              ? isFullDayUnavailable(s)
+                                ? "Not available all day"
+                                : `${fmtLong(s.start_time)} – ${fmtLong(s.end_time)} · Walk-in block`
+                              : `${fmtLong(s.start_time)} – ${fmtLong(s.end_time)}`}
                             {s.created_by && (
                               <span className="ml-[8px] rounded-full bg-white/70 px-[8px] py-[1px] text-[10px] uppercase tracking-wide text-[#555]">
                                 {s.created_by}
@@ -542,12 +631,28 @@ export default function AffiliateSchedule() {
                             )}
                           </span>
                           {!selIsPast && (
-                            <button
-                              onClick={() => handleDeleteSlot(s.id)}
-                              className={`${serif} text-[12px] text-[#b4493a] hover:underline cursor-pointer bg-transparent border-0`}
-                            >
-                              Remove
-                            </button>
+                            isFullDayUnavailable(s) ? (
+                              <button
+                                onClick={() => handleDeleteSlot(s.id)}
+                                className={`${serif} text-[12px] text-[#b4493a] hover:underline cursor-pointer bg-transparent border-0`}
+                              >
+                                Remove
+                              </button>
+                            ) : s.status === "unavailable" ? (
+                              <button
+                                onClick={() => handleRestoreBlockedTime(s.id)}
+                                className={`${serif} text-[12px] text-[#1f6b55] hover:underline cursor-pointer bg-transparent border-0`}
+                              >
+                                Restore
+                              </button>
+                            ) : (
+                              <button
+                                onClick={() => handleDeleteSlot(s.id)}
+                                className={`${serif} text-[12px] text-[#b4493a] hover:underline cursor-pointer bg-transparent border-0`}
+                              >
+                                Remove
+                              </button>
+                            )
                           )}
                         </div>
                       ))}
@@ -560,11 +665,15 @@ export default function AffiliateSchedule() {
                   <div className={`${serif} mt-[24px] rounded-[8px] border border-[#dfe2e1] bg-[#f3f4f4] p-[14px] text-[13px] text-[#6b7571]`}>
                     This date has passed, so its schedule can't be changed.
                   </div>
-                ) : availabilityMode === "available" ? (
+                ) : (
                   <div className="mt-[24px]">
-                    <h4 className={`${serif} text-[20px] font-bold text-[#202020]`}>Add availability</h4>
+                    <h4 className={`${serif} text-[20px] font-bold text-[#202020]`}>
+                      {availabilityMode === "blocked" ? "Block time for a walk-in" : "Add availability"}
+                    </h4>
                     <p className={`${serif} text-[13px] text-[#666] mt-[2px]`}>
-                      Pick the time you can see clients. You can add more than one time on the same day.
+                      {availabilityMode === "blocked"
+                        ? "Clients won't be able to book this time. Other available times remain open."
+                        : "Pick the time for all selected dates. You can select multiple dates on the calendar."}
                     </p>
 
                     <div className="mt-[16px]">
@@ -572,38 +681,45 @@ export default function AffiliateSchedule() {
                         FROM AND TO
                       </label>
                       <div className="flex items-center gap-[10px]">
-                        <input
-                          type="time"
-                          value={fromTime}
-                          onChange={(e) => setFromTime(e.target.value)}
+                        <select
+                          value={selectedFromTime}
+                          onChange={(e) => availabilityMode === "blocked" ? setBlockFromTime(e.target.value) : setFromTime(e.target.value)}
+                          aria-label="From time"
                           className={`${serif} w-full rounded-[6px] border border-[#c7b6b6] bg-white px-[14px] py-[8px] text-[14px] text-[#202020] outline-none focus:border-[#1f6b55] focus:ring-1 focus:ring-[#1f6b55]`}
-                        />
+                        >
+                          {TIME_OPTIONS.map((time) => (
+                            <option key={time.value} value={time.value}>{time.label}</option>
+                          ))}
+                        </select>
                         <span className={`${serif} text-[13px] font-medium text-[#666] px-[2px]`}>To</span>
-                        <input
-                          type="time"
-                          value={toTime}
-                          onChange={(e) => setToTime(e.target.value)}
+                        <select
+                          value={selectedToTime}
+                          onChange={(e) => availabilityMode === "blocked" ? setBlockToTime(e.target.value) : setToTime(e.target.value)}
+                          aria-label="To time"
                           className={`${serif} w-full rounded-[6px] border border-[#c7b6b6] bg-white px-[14px] py-[8px] text-[14px] text-[#202020] outline-none focus:border-[#1f6b55] focus:ring-1 focus:ring-[#1f6b55]`}
-                        />
+                        >
+                          {TIME_OPTIONS.map((time) => (
+                            <option key={time.value} value={time.value}>{time.label}</option>
+                          ))}
+                        </select>
                       </div>
                     </div>
-                  </div>
-                ) : (
-                  <div className="mt-[24px]">
-                    <h4 className={`${serif} text-[20px] font-bold text-[#202020]`}>Mark as not available</h4>
-                    <p className={`${serif} text-[13px] text-[#666] mt-[2px]`}>
-                      This closes the whole day. Any open times saved for this day will be removed.
-                    </p>
                   </div>
                 )}
 
                 <div className={`mt-[20px] bg-[#e6f4ee] border border-[#a8dbc4] rounded-[8px] p-[14px] text-[#175240] ${selIsPast ? "hidden" : ""}`}>
                   <span className={`${serif} text-[13px]`}>
-                    {availabilityMode === "available"
-                      ? fromTime && toTime
-                        ? `You'll open ${fmtLong(fromTime)} – ${fmtLong(toTime)} on ${fullDayName}, ${shortMonth} ${selDateObj.getDate()}.`
-                        : "Choose a start and end time."
-                      : `You will be marked unavailable on ${fullDayName}, ${shortMonth} ${selDateObj.getDate()}.`}
+                    {selectingDates && selectedDates.length === 0
+                      ? "Select one or more dates on the calendar."
+                      : availabilityMode === "blocked"
+                      ? `You will block ${fmtLong(selectedFromTime)} – ${fmtLong(selectedToTime)} for a walk-in ${selectingDates
+                          ? `on all ${selectedDates.length} selected date${selectedDates.length === 1 ? "" : "s"}`
+                          : `on ${fullDayName}, ${MONTHS[selDateObj.getMonth()]} ${selDateObj.getDate()}`}.`
+                      : selectedFromTime && selectedToTime
+                        ? `You'll open ${fmtLong(selectedFromTime)} – ${fmtLong(selectedToTime)} ${selectingDates
+                          ? `on all ${selectedDates.length} selected date${selectedDates.length === 1 ? "" : "s"}`
+                          : `on ${fullDayName}, ${MONTHS[selDateObj.getMonth()]} ${selDateObj.getDate()}`}.`
+                        : "Choose a start and end time."}
                   </span>
                 </div>
 
@@ -625,10 +741,20 @@ export default function AffiliateSchedule() {
 
               <button
                 onClick={handleAddAvailability}
-                disabled={saving || selIsPast}
+                disabled={saving || (selectingDates ? selectedDates.length === 0 : selIsPast)}
                 className={`${serif} w-full mt-[28px] py-[12px] bg-[#00a58a] hover:bg-[#00937a] disabled:opacity-60 disabled:cursor-not-allowed text-white rounded-[8px] text-[15px] font-semibold transition-all shadow-sm hover:shadow cursor-pointer border-0`}
               >
-                {saving ? "Saving…" : selIsPast ? "Date has passed" : availabilityMode === "available" ? "+ Add availability" : "Mark as not available"}
+                {saving
+                  ? "Saving…"
+                  : selectingDates && selectedDates.length === 0
+                    ? "Select dates to continue"
+                    : availabilityMode === "blocked"
+                        ? selectingDates
+                          ? "Block time for selected dates"
+                          : "Block time for walk-in"
+                        : selectingDates
+                          ? "+ Add availability for selected dates"
+                          : "+ Add availability"}
               </button>
             </div>
           </div>

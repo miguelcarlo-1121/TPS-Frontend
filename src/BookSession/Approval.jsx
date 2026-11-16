@@ -6,6 +6,7 @@ import { peso, to12 } from "../components/payUtils";
 import StepRail from "./StepRail";
 import BookingSummary from "./BookingSummary";
 import { useBooking } from "./bookingContext";
+import SkeletonBlock from "../components/SkeletonBlock";
 
 const pageShell = "font-sans text-black bg-tf-bg overflow-x-hidden antialiased";
 const mainPad = "py-12 pb-24 max-[720px]:py-7 max-[720px]:pb-16 bg-tf-bg";
@@ -213,7 +214,11 @@ export default function Approval() {
                     Appointment approval follows payment verification. This page updates automatically.
                   </p>
                 </div>
-                <StatusBadge status={status} />
+                {loaded ? (
+                  <StatusBadge status={status} />
+                ) : (
+                  <SkeletonBlock className="h-6 w-44 rounded-full" />
+                )}
               </header>
 
               {error && (
@@ -228,7 +233,21 @@ export default function Approval() {
                 </div>
               )}
 
-              <ol className="m-0 mt-8 list-none space-y-0 p-0">
+              {!loaded && (
+                <div className="mt-8 space-y-7" role="status" aria-label="Loading appointment status">
+                  <span className="sr-only">Loading appointment status…</span>
+                  {[0, 1, 2].map((item) => (
+                    <div key={item} className="flex gap-4">
+                      <SkeletonBlock className="size-8 shrink-0 rounded-full" />
+                      <div className="grid flex-1 gap-2 pt-1">
+                        <SkeletonBlock className="h-4 w-48 max-w-full rounded" />
+                        <SkeletonBlock className="h-3 w-3/4 rounded" />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {loaded && <ol className="m-0 mt-8 list-none space-y-0 p-0">
                 {STAGES.map((s, i) => {
                   const done = stageIndex > i || status === "approved";
                   const active = stageIndex === i;
@@ -260,7 +279,7 @@ export default function Approval() {
                     </li>
                   );
                 })}
-              </ol>
+              </ol>}
 
               {status === "rejected" && (
                 <div className="mt-4 rounded-xl border border-red-200 bg-red-50 px-4 py-4 text-sm text-red-900">
@@ -277,6 +296,18 @@ export default function Approval() {
 
               <div className="mt-8 rounded-2xl border border-black/10 bg-[#fbfdfc] p-5">
                 <p className="m-0 text-[11px] font-bold tracking-[0.1em] text-tf-teal">APPOINTMENT DETAILS</p>
+                {!loaded && (
+                  <div className="mt-3 grid gap-3" aria-hidden="true">
+                    {[0, 1, 2, 3, 4].map((item) => (
+                      <div key={item} className="flex justify-between gap-3">
+                        <SkeletonBlock className="h-3 w-16 rounded" />
+                        <SkeletonBlock className="h-3 w-32 max-w-[60%] rounded" />
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {loaded && (
+                  <>
                 <dl className="m-0 mt-3 grid gap-2 text-sm">
                   <div className="flex justify-between gap-3">
                     <dt className="text-[#666]">Service</dt>
@@ -320,6 +351,8 @@ export default function Approval() {
                       ? "Go back to payment to send your payment details again."
                       : "You may return home or message the clinic for assistance.")}
                 </p>
+                  </>
+                )}
               </div>
 
               {retryError && !paymentRejected && (

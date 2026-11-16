@@ -6,6 +6,7 @@ import { DEFAULT_HOME_CONTENT, mergeHomeContent } from "./homeDefaults";
 
 export function useHomeContent() {
   const [content, setContent] = useState(DEFAULT_HOME_CONTENT);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     let cancelled = false;
@@ -13,9 +14,12 @@ export function useHomeContent() {
       .then((data) => {
         if (!cancelled && data) setContent(mergeHomeContent(data));
       })
-      .catch(() => { /* manatili sa defaults */ });
+      .catch(() => { /* manatili sa defaults */ })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
     return () => { cancelled = true; };
   }, []);
 
-  return content;
+  return { content, loading };
 }

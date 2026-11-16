@@ -9,6 +9,7 @@ import BookingSummary from "./BookingSummary";
 import { useBooking } from "./bookingContext";
 import SignaturePad from "../components/SignaturePad";
 import AbaConsentForm from "./AbaConsentForm";
+import SkeletonBlock from "../components/SkeletonBlock";
 
 const pageShell = "font-sans text-black bg-tf-bg overflow-x-hidden antialiased";
 const mainPad = "py-12 pb-24 max-[720px]:py-7 max-[720px]:pb-16 bg-tf-bg";
@@ -26,6 +27,27 @@ const NAME_STRIP = /[^\p{L}\s.'’-]/gu;
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 const PH_RE = /^09\d{9}$/;
 const digits11 = (v) => v.replace(/\D/g, "").slice(0, 11);
+const RELATIONSHIPS = ["Parent", "Sibling", "Spouse", "Child", "Grandparent", "Relative", "Friend", "Other"];
+const findRelationship = (value) =>
+  RELATIONSHIPS.find(
+    (relationship) => relationship !== "Other" && relationship.toLowerCase() === String(value || "").toLowerCase()
+  );
+const relationshipFields = (value) => {
+  const known = findRelationship(value);
+  return {
+    choice: known || (value ? "Other" : ""),
+    other: known ? "" : value || "",
+  };
+};
+const submittedRelationship = (choice, other) => (choice === "Other" ? other : choice).trim();
+const relationshipDraft = (intake, key) => {
+  const choice = intake?.[key] || "";
+  if (choice === "Other") {
+    return { [key]: choice, [`${key}_other`]: intake?.[`${key}_other`] || "" };
+  }
+  const fields = relationshipFields(choice);
+  return { [key]: fields.choice, [`${key}_other`]: fields.other };
+};
 const isAbaPayment = (payment) =>
   payment?.consent_type === "aba" ||
   payment?.service_id === "aba" ||
@@ -61,9 +83,10 @@ const CHECKS = [
 ];
 
 const emptyIntake = {
-  full_name: "", nickname: "", gender: "", civil_status: "", birthdate: "", address: "",
+  full_name: "", nickname: "", gender: "", civil_status: "", civil_status_other: "", birthdate: "", address: "",
   mobile: "", email: "", occupation: "", heard_about: "",
-  e1_name: "", e1_relation: "", e1_mobile: "", e2_name: "", e2_relation: "", e2_mobile: "",
+  e1_name: "", e1_relation: "", e1_relation_other: "", e1_mobile: "",
+  e2_name: "", e2_relation: "", e2_relation_other: "", e2_mobile: "",
   reason: "", duration_unit: "", goals: "",
   prev_therapy: null, prev_therapy_details: "",
   diagnosed: null, diagnosed_details: "",
@@ -171,16 +194,23 @@ function validateIntake(i) {
   if (i.address.trim().length < 5) e.address = "Complete address is required.";
   if (!PH_RE.test(i.mobile)) e.mobile = "Enter an 11-digit mobile number (e.g. 09123456789).";
   if (!EMAIL_RE.test(i.email.trim())) e.email = "Enter a valid email address.";
+  if (i.civil_status === "Other" && i.civil_status_other.trim().length < 2) {
+    e.civil_status_other = "Please specify your civil status.";
+  }
 
   if (i.e1_name.trim().length < 2) e.e1_name = "Contact name is required.";
   else if (!NAME_RE.test(i.e1_name.trim())) e.e1_name = "Name must not contain numbers.";
-  if (!NAME_RE.test(i.e1_relation.trim())) e.e1_relation = "Relationship is required (letters only).";
+  if (submittedRelationship(i.e1_relation, i.e1_relation_other).length < 2) {
+    e.e1_relation = "Relationship is required.";
+  }
   if (!PH_RE.test(i.e1_mobile)) e.e1_mobile = "Enter an 11-digit mobile number.";
 
   const e2Any = i.e2_name.trim() || i.e2_relation.trim() || i.e2_mobile;
   if (e2Any) {
     if (!NAME_RE.test(i.e2_name.trim())) e.e2_name = "Contact name is required (letters only).";
-    if (!NAME_RE.test(i.e2_relation.trim())) e.e2_relation = "Relationship is required (letters only).";
+    if (submittedRelationship(i.e2_relation, i.e2_relation_other).length < 2) {
+      e.e2_relation = "Relationship is required.";
+    }
     if (!PH_RE.test(i.e2_mobile)) e.e2_mobile = "Enter an 11-digit mobile number.";
   }
 
@@ -278,14 +308,23 @@ export default function Consent() {
         }
 
         if (draft) {
+          const intakeDraft = draft.intake ?? {};
           setStep(draft.step ?? 0);
           setChecks(draft.checks ?? {});
-          setIntake({ ...emptyIntake, ...(draft.intake ?? {}) });
+          setIntake({
+            ...emptyIntake,
+            ...intakeDraft,
+            nickname: String(intakeDraft.nickname || "").replace(NAME_STRIP, ""),
+            gender: ["Male", "Female"].includes(intakeDraft.gender) ? intakeDraft.gender : "",
+            ...relationshipDraft(intakeDraft, "e1_relation"),
+            ...relationshipDraft(intakeDraft, "e2_relation"),
+          });
           setDsm(Array.isArray(draft.dsm) && draft.dsm.length === 23 ? draft.dsm : Array(23).fill(null));
           setSign(draft.sign ?? { name: "", certify: false });
           setGuardian(draft.guardian ?? { name: "", relation: "" });
         } else if (d.prefill) {
           const p = d.prefill;
+          const relation = relationshipFields(p.emergency_relation || "");
           setIntake({
             ...emptyIntake,
             full_name: p.full_name || "",
@@ -293,7 +332,8 @@ export default function Consent() {
             email: p.email || "",
             mobile: p.mobile || "",
             e1_name: p.emergency_name || "",
-            e1_relation: p.emergency_relation || "",
+            e1_relation: relation.choice,
+            e1_relation_other: relation.other,
             e1_mobile: p.emergency_phone || "",
           });
           setSign((s) => ({ ...s, name: p.full_name || "" }));
@@ -413,9 +453,17 @@ export default function Consent() {
     setServerError("");
     setSubmitting(true);
     const i = intake;
-    const emergency = [{ name: i.e1_name.trim(), relation: i.e1_relation.trim(), mobile: i.e1_mobile }];
+    const emergency = [{
+      name: i.e1_name.trim(),
+      relation: submittedRelationship(i.e1_relation, i.e1_relation_other),
+      mobile: i.e1_mobile,
+    }];
     if (i.e2_name.trim() || i.e2_relation.trim() || i.e2_mobile) {
-      emergency.push({ name: i.e2_name.trim(), relation: i.e2_relation.trim(), mobile: i.e2_mobile });
+      emergency.push({
+        name: i.e2_name.trim(),
+        relation: submittedRelationship(i.e2_relation, i.e2_relation_other),
+        mobile: i.e2_mobile,
+      });
     }
 
     try {
@@ -426,7 +474,7 @@ export default function Consent() {
             full_name: i.full_name.trim(),
             nickname: i.nickname.trim() || null,
             gender: i.gender.trim() || null,
-            civil_status: i.civil_status || null,
+            civil_status: (i.civil_status === "Other" ? i.civil_status_other : i.civil_status) || null,
             birthdate: i.birthdate,
             address: i.address.trim(),
             mobile: i.mobile,
@@ -492,9 +540,19 @@ export default function Consent() {
 
   if (!loaded) {
     body = (
-      <div className="mt-8 flex items-center gap-3 text-sm text-[#5b6b64]">
-        <span className="size-5 animate-spin rounded-full border-2 border-[#cfe3dc] border-t-tf-teal" aria-hidden />
-        Loading your forms…
+      <div className="mt-8 grid gap-5" role="status" aria-label="Loading consent forms">
+        <span className="sr-only">Loading your forms…</span>
+        <SkeletonBlock className="h-4 w-40 rounded" />
+        <SkeletonBlock className="h-3 w-full rounded" />
+        <SkeletonBlock className="h-3 w-4/5 rounded" />
+        <div className="mt-2 grid gap-3">
+          {[0, 1, 2].map((item) => (
+            <div key={item} className="grid gap-2">
+              <SkeletonBlock className="h-3 w-36 rounded" />
+              <SkeletonBlock className="h-11 w-full rounded-lg" />
+            </div>
+          ))}
+        </div>
       </div>
     );
   } else if (loadError) {
@@ -707,10 +765,14 @@ export default function Consent() {
             </Field>
             <div className="grid grid-cols-3 gap-4 max-[720px]:grid-cols-1">
               <Field label="Nickname" required={false}>
-                <input className={inputClass} value={intake.nickname} maxLength={60} onChange={(ev) => setI("nickname", ev.target.value)} />
+                <input className={inputClass} value={intake.nickname} maxLength={60} onChange={(ev) => setI("nickname", ev.target.value.replace(NAME_STRIP, ""))} />
               </Field>
-              <Field label="Gender / pronouns" required={false}>
-                <input className={inputClass} value={intake.gender} maxLength={60} placeholder="e.g. Female, she/her" onChange={(ev) => setI("gender", ev.target.value)} />
+              <Field label="Gender" required={false}>
+                <select className={inputClass} value={intake.gender} onChange={(ev) => setI("gender", ev.target.value)}>
+                  <option value="">Select…</option>
+                  <option value="Male">Male</option>
+                  <option value="Female">Female</option>
+                </select>
               </Field>
               <Field label="Civil status" required={false}>
                 <select className={inputClass} value={intake.civil_status} onChange={(ev) => setI("civil_status", ev.target.value)}>
@@ -720,6 +782,16 @@ export default function Consent() {
                   ))}
                 </select>
               </Field>
+              {intake.civil_status === "Other" && (
+                <Field label="Specify civil status" error={e.civil_status_other}>
+                  <input
+                    className={`${inputClass} ${e.civil_status_other ? inputErr : ""}`}
+                    value={intake.civil_status_other}
+                    maxLength={30}
+                    onChange={(ev) => setI("civil_status_other", ev.target.value)}
+                  />
+                </Field>
+              )}
             </div>
             <div className="grid grid-cols-2 gap-4 max-[720px]:grid-cols-1">
               <Field label="Date of birth" error={e.birthdate}>
@@ -745,7 +817,7 @@ export default function Consent() {
               />
             </Field>
             <div className="grid grid-cols-2 gap-4 max-[720px]:grid-cols-1">
-              <Field label="Mobile number" hint="11 digits" error={e.mobile}>
+              <Field label="Mobile number" error={e.mobile}>
                 <input
                   type="tel"
                   inputMode="numeric"
@@ -782,10 +854,30 @@ export default function Consent() {
               <Field label="Name" error={e.e1_name}>
                 <input className={`${inputClass} ${e.e1_name ? inputErr : ""}`} value={intake.e1_name} maxLength={150} onChange={(ev) => setI("e1_name", ev.target.value.replace(NAME_STRIP, ""))} />
               </Field>
-              <Field label="Relationship to client" error={e.e1_relation}>
-                <input className={`${inputClass} ${e.e1_relation ? inputErr : ""}`} value={intake.e1_relation} maxLength={60} onChange={(ev) => setI("e1_relation", ev.target.value.replace(NAME_STRIP, ""))} />
+              <Field label="Relationship to client" error={intake.e1_relation !== "Other" ? e.e1_relation : ""}>
+                <select
+                  className={`${inputClass} ${e.e1_relation ? inputErr : ""}`}
+                  value={intake.e1_relation}
+                  onChange={(ev) => {
+                    setI("e1_relation", ev.target.value);
+                    if (ev.target.value !== "Other") setI("e1_relation_other", "");
+                  }}
+                >
+                  <option value="">Select relationship…</option>
+                  {RELATIONSHIPS.map((relationship) => <option key={relationship} value={relationship}>{relationship}</option>)}
+                </select>
               </Field>
-              <Field label="Mobile number" hint="11 digits" error={e.e1_mobile}>
+              {intake.e1_relation === "Other" && (
+                <Field label="Specify relationship" error={e.e1_relation} className="col-span-full">
+                  <input
+                    className={`${inputClass} ${e.e1_relation ? inputErr : ""}`}
+                    value={intake.e1_relation_other}
+                    maxLength={60}
+                    onChange={(ev) => setI("e1_relation_other", ev.target.value)}
+                  />
+                </Field>
+              )}
+              <Field label="Mobile number" error={e.e1_mobile}>
                 <input type="tel" inputMode="numeric" maxLength={11} className={`${inputClass} ${e.e1_mobile ? inputErr : ""}`} value={intake.e1_mobile} onChange={(ev) => setI("e1_mobile", digits11(ev.target.value))} />
               </Field>
             </div>
@@ -796,10 +888,30 @@ export default function Consent() {
               <Field label="Name" required={false} error={e.e2_name}>
                 <input className={`${inputClass} ${e.e2_name ? inputErr : ""}`} value={intake.e2_name} maxLength={150} onChange={(ev) => setI("e2_name", ev.target.value.replace(NAME_STRIP, ""))} />
               </Field>
-              <Field label="Relationship to client" required={false} error={e.e2_relation}>
-                <input className={`${inputClass} ${e.e2_relation ? inputErr : ""}`} value={intake.e2_relation} maxLength={60} onChange={(ev) => setI("e2_relation", ev.target.value.replace(NAME_STRIP, ""))} />
+              <Field label="Relationship to client" required={false} error={intake.e2_relation !== "Other" ? e.e2_relation : ""}>
+                <select
+                  className={`${inputClass} ${e.e2_relation ? inputErr : ""}`}
+                  value={intake.e2_relation}
+                  onChange={(ev) => {
+                    setI("e2_relation", ev.target.value);
+                    if (ev.target.value !== "Other") setI("e2_relation_other", "");
+                  }}
+                >
+                  <option value="">Select relationship…</option>
+                  {RELATIONSHIPS.map((relationship) => <option key={relationship} value={relationship}>{relationship}</option>)}
+                </select>
               </Field>
-              <Field label="Mobile number" required={false} hint="11 digits" error={e.e2_mobile}>
+              {intake.e2_relation === "Other" && (
+                <Field label="Specify relationship" required={false} error={e.e2_relation} className="col-span-full">
+                  <input
+                    className={`${inputClass} ${e.e2_relation ? inputErr : ""}`}
+                    value={intake.e2_relation_other}
+                    maxLength={60}
+                    onChange={(ev) => setI("e2_relation_other", ev.target.value)}
+                  />
+                </Field>
+              )}
+              <Field label="Mobile number" required={false} error={e.e2_mobile}>
                 <input type="tel" inputMode="numeric" maxLength={11} className={`${inputClass} ${e.e2_mobile ? inputErr : ""}`} value={intake.e2_mobile} onChange={(ev) => setI("e2_mobile", digits11(ev.target.value))} />
               </Field>
             </div>
@@ -1063,15 +1175,11 @@ export default function Consent() {
             <Reveal className={panelClass} delay={140}>
               <header>
                 <h2 className="m-0 mb-1.5 font-serif text-[1.4rem] font-normal text-[#202020]">
-                  {!loaded
-                    ? "Loading consent form…"
-                    : isAba
-                      ? "ABA consent form"
-                      : "Consent & intake forms"}
+                  {!loaded ? <SkeletonBlock className="mt-1 h-6 w-52 rounded" /> : isAba ? "ABA consent form" : "Consent & intake forms"}
                 </h2>
                 <p className="m-0 text-sm text-[#666]">
                   {!loaded
-                    ? "Loading your booking details…"
+                    ? <span className="grid gap-2 py-1"><SkeletonBlock className="h-3 w-full max-w-lg rounded" /><SkeletonBlock className="h-3 w-3/4 rounded" /><span className="sr-only">Loading your booking details…</span></span>
                     : isAba
                     ? "Please complete the ABA consent form after your appointment is approved. Your answers are confidential and visible to your care team."
                     : isPsychotherapy

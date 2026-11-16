@@ -3,6 +3,7 @@ import AffiliateNavigation from "./affiliatenav";
 import ProfileMenu from "../components/ProfileMenu";
 import { apiFetch } from "../auth";
 import { peso } from "../components/payUtils";
+import SkeletonBlock from "../components/SkeletonBlock";
 import {
   PaymentRow as SharedPaymentRow,
   ReceiptModal as SharedReceiptModal,
@@ -207,10 +208,11 @@ export default function AffiliatePayment() {
 
         {/* Stat cards */}
         <section className="mt-[34px] grid grid-cols-1 gap-[29px] md:grid-cols-2 lg:grid-cols-4">
-          <StatCard variant="dark" title="VERIFIED PAYMENTS" value={peso(stats?.verified_total)} subtitle="Total verified" />
-          <StatCard variant="warn" title="RECEIPTS TO VERIFY" value={stats?.to_verify ?? 0} subtitle="Waiting for review" />
-          <StatCard title="BALANCE DUE" value={peso(stats?.balance_due)} subtitle="Balance due from downpayments" />
+          <StatCard loading={loading} variant="dark" title="VERIFIED PAYMENTS" value={peso(stats?.verified_total)} subtitle="Total verified" />
+          <StatCard loading={loading} variant="warn" title="RECEIPTS TO VERIFY" value={stats?.to_verify ?? 0} subtitle="Waiting for review" />
+          <StatCard loading={loading} title="BALANCE DUE" value={peso(stats?.balance_due)} subtitle="Balance due from downpayments" />
           <StatCard
+            loading={loading}
             title="PAYMENT SUMMARY"
             value={`${stats?.full_count ?? 0} / ${stats?.down_count ?? 0}`}
             subtitle="Full payments / downpayments"
@@ -246,7 +248,31 @@ export default function AffiliatePayment() {
         {error && (
           <p className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{error}</p>
         )}
-        {loading && <p className={`${serif} text-sm text-[#666]`}>Loading payments…</p>}
+        {loading && (
+          <div className="space-y-[14px]" aria-busy="true">
+            {[0, 1, 2].map((group) => (
+              <section key={group} className="mb-[32px]">
+                <div className="mb-4 flex items-center gap-4">
+                  <SkeletonBlock className="h-4 w-24 rounded-md" />
+                  <SkeletonBlock className="h-px flex-1 rounded" />
+                </div>
+                <div className="space-y-[14px]">
+                  {[0, 1].map((row) => (
+                    <div key={row} className="rounded-[10px] border border-[#c7b6b6] bg-white p-4 sm:p-5">
+                      <div className="flex flex-wrap items-start justify-between gap-4">
+                        <div className="min-w-[180px] flex-1">
+                          <SkeletonBlock className="h-4 w-40 rounded-md" />
+                          <SkeletonBlock className="mt-3 h-3 w-56 max-w-full rounded-md" />
+                        </div>
+                        <SkeletonBlock className="h-8 w-28 rounded-md" />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </section>
+            ))}
+          </div>
+        )}
         {!loading && !error && groups.length === 0 && (
           <p className={`${serif} text-sm text-[#666]`}>No payments yet.</p>
         )}
@@ -305,7 +331,7 @@ function Group({ label, items, onOpen }) {
   );
 }
 
-function StatCard({ title, value, subtitle, variant = "light" }) {
+function StatCard({ title, value, subtitle, variant = "light", loading = false }) {
   const base =
     "min-h-[140px] overflow-hidden border px-[23px] py-[22px] rounded-tl-[18px] rounded-tr-[7px] rounded-br-[18px] rounded-bl-[7px]";
   const styles = {
@@ -320,8 +346,16 @@ function StatCard({ title, value, subtitle, variant = "light" }) {
   return (
     <div className={`${base} ${styles[variant]}`}>
       <div className={`${inter} text-[11px] font-bold ${label}`}>{title}</div>
-      <div className={`${inter} mt-[14px] text-[32px] font-bold leading-none ${num}`}>{value}</div>
-      <p className={`${inter} mt-[12px] text-[11px] font-bold ${sub}`}>{subtitle}</p>
+      {loading ? (
+        <SkeletonBlock className={`mt-[14px] h-[32px] w-32 max-w-full rounded-md ${variant === "dark" ? "bg-white/20" : ""}`} />
+      ) : (
+        <div className={`${inter} mt-[14px] text-[32px] font-bold leading-none ${num}`}>{value}</div>
+      )}
+      {loading ? (
+        <SkeletonBlock className={`mt-[12px] h-3 w-28 max-w-full rounded-md ${variant === "dark" ? "bg-white/20" : ""}`} />
+      ) : (
+        <p className={`${inter} mt-[12px] text-[11px] font-bold ${sub}`}>{subtitle}</p>
+      )}
     </div>
   );
 }

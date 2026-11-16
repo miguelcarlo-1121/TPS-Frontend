@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import AdminNavigation from "./adminnavigation";
 import ProfileMenu from "../components/ProfileMenu";
+import SkeletonBlock from "../components/SkeletonBlock";
 import { apiFetch } from "../auth";
 import { peso, resizeToJpeg } from "../components/payUtils";
 
@@ -707,7 +708,42 @@ export default function PaymentMethods() {
                 {error && (
                     <p className="mt-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{error}</p>
                 )}
-                {!settings && !error && <p className={`${serif} mt-6 text-sm text-[#666]`}>Loading…</p>}
+                {!settings && !error && (
+                    <div className="mt-[24px] grid gap-[24px]" aria-busy="true">
+                        <div className="grid grid-cols-2 items-start gap-[24px] max-[1100px]:grid-cols-1">
+                            {[0, 1].map((card) => (
+                                <section key={card} className="rounded-[10px] border border-[#c7b6b6] bg-white p-6">
+                                    <SkeletonBlock className="h-5 w-48 rounded" />
+                                    <SkeletonBlock className="mt-3 h-3 w-3/4 rounded" />
+                                    <div className="mt-6 grid grid-cols-2 gap-4">
+                                        {[0, 1, 2, 3].map((field) => (
+                                            <div key={field}>
+                                                <SkeletonBlock className="mb-2 h-3 w-24 rounded" />
+                                                <SkeletonBlock className="h-10 w-full rounded-md" />
+                                            </div>
+                                        ))}
+                                    </div>
+                                    <SkeletonBlock className="mt-6 h-9 w-28 rounded-md" />
+                                </section>
+                            ))}
+                        </div>
+                        <div className="grid grid-cols-2 gap-[24px] max-[1100px]:grid-cols-1">
+                            {[0, 1].map((card) => (
+                                <section key={card} className="rounded-[10px] border border-[#c7b6b6] bg-white p-6">
+                                    <div className="flex items-center gap-4">
+                                        <SkeletonBlock className="size-16 rounded-lg" />
+                                        <div className="flex-1">
+                                            <SkeletonBlock className="h-4 w-40 rounded" />
+                                            <SkeletonBlock className="mt-2 h-3 w-28 rounded" />
+                                        </div>
+                                    </div>
+                                    <SkeletonBlock className="mt-5 h-3 w-3/4 rounded" />
+                                    <SkeletonBlock className="mt-4 h-8 w-20 rounded-md" />
+                                </section>
+                            ))}
+                        </div>
+                    </div>
+                )}
 
                 {settings && (
                     <>

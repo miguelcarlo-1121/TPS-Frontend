@@ -14,6 +14,7 @@ const panelClass =
   "bg-white border border-black/[0.23] rounded-[21px] p-7 max-[720px]:p-5";
 
 const CHECK_TIMEOUT_MS = 8000;
+const RESUMABLE_BOOKING_PATHS = ["/book/date-time", "/book/info", "/book/review"];
 
 const withTimeout = (promise, ms) =>
   Promise.race([
@@ -190,6 +191,14 @@ export default function BookSession() {
   const [checking, setChecking] = useState(true);
 
   useEffect(() => {
+    if (checking || !RESUMABLE_BOOKING_PATHS.includes(booking.resumePath)) return;
+    const holdExpiresAt = new Date(booking.holdExpiresAt || "").getTime();
+    if (booking.holdId && holdExpiresAt > Date.now()) {
+      navigate(booking.resumePath, { replace: true });
+    }
+  }, [booking.holdExpiresAt, booking.holdId, booking.resumePath, checking, navigate]);
+
+  useEffect(() => {
     let alive = true;
 
     withTimeout(apiFetch("/booking/active"), CHECK_TIMEOUT_MS)
@@ -232,6 +241,7 @@ export default function BookSession() {
       holdId: null,
       holdExpiresAt: null,
       providerId: null,
+      resumePath: null,
     });
   };
 

@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import AdminNavigation from "./adminnavigation";
 import ProfileMenu from "../components/ProfileMenu";
+import SkeletonBlock from "../components/SkeletonBlock";
 import { apiFetch } from "../auth";
 
 const FONT_CSS = `@import url('https://fonts.googleapis.com/css2?family=Inria+Serif:wght@400;700&family=Inter:wght@400;600;700&display=swap');`;
@@ -417,7 +418,7 @@ export default function AdminAccounts() {
                                 {role === "All" ? "All registered accounts" : `${role} accounts`}
                             </h2>
                             <p className={`${serif} text-[11px] text-[#666]`}>
-                                {loading ? "Loading…" : `${meta.total || filtered.length} total accounts`}
+                                {loading ? <SkeletonBlock className="mt-1 h-3 w-24 rounded" /> : `${meta.total || filtered.length} total accounts`}
                             </p>
                         </div>
                         <div className="flex flex-col gap-[10px] sm:flex-row sm:items-center sm:gap-[12px]">
@@ -455,11 +456,23 @@ export default function AdminAccounts() {
                             </thead>
                             <tbody>
                                 {loading ? (
-                                    <tr>
-                                        <td colSpan={5} className="py-12 text-center text-sm text-[#777]">
-                                            Loading accounts from database…
-                                        </td>
-                                    </tr>
+                                    [0, 1, 2, 3, 4].map((row) => (
+                                        <tr key={row} className="border-t border-[#e8e8e8]" aria-hidden="true">
+                                            <td className="px-[24px] py-[12px]">
+                                                <div className="flex items-center gap-[12px]">
+                                                    <SkeletonBlock className="size-10 shrink-0 rounded-full" />
+                                                    <div className="min-w-[150px] flex-1">
+                                                        <SkeletonBlock className="h-3 w-32 max-w-full rounded" />
+                                                        <SkeletonBlock className="mt-2 h-2.5 w-44 max-w-full rounded" />
+                                                    </div>
+                                                </div>
+                                            </td>
+                                            <td className="pr-[12px]"><SkeletonBlock className="h-3 w-16 rounded" /></td>
+                                            <td className="pr-[12px]"><SkeletonBlock className="h-5 w-16 rounded-full" /></td>
+                                            <td className="hidden pr-[12px] xl:table-cell"><SkeletonBlock className="h-3 w-20 rounded" /></td>
+                                            <td className="px-[24px]"><SkeletonBlock className="ml-auto h-7 w-16 rounded" /></td>
+                                        </tr>
+                                    ))
                                 ) : filtered.length === 0 ? (
                                     <tr>
                                         <td colSpan={5} className={`${serif} px-[24px] py-[48px] text-center text-[13px] text-[#666]`}>

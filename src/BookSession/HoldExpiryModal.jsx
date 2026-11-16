@@ -13,6 +13,7 @@ const RESET = {
   holdId: null,
   holdExpiresAt: null,
   providerId: null,
+  resumePath: null,
 };
 
 export default function HoldExpiryModal() {

@@ -5,6 +5,7 @@ import { Logo, Photo } from "../components/Layout";
 import ProfileMenu from "../components/ProfileMenu";
 import { apiFetch } from "../auth";
 import { peso, to12 } from "../components/payUtils";
+import SkeletonBlock from "../components/SkeletonBlock";
 
 const FONT_CSS = `@import url('https://fonts.googleapis.com/css2?family=Inknut+Antiqua:wght@600&family=Inria+Serif:wght@400;700&family=Inter:wght@400;600;700&display=swap');`;
 
@@ -443,35 +444,43 @@ const CalendarCard = () => {
                     <span key={i}>{x}</span>
                 ))}
             </div>
-            <div className={`mt-2 flex flex-col gap-1.5 ${loading ? "opacity-60" : ""}`}>
-                {weeks.map((week, wi) => (
-                    <div key={wi} className="grid grid-cols-7 gap-1.5">
-                        {week.map((d, di) => {
-                            if (!d) return <span key={di} className="block h-[42px]" />;
-                            const n = (byDay[d] || []).length;
-                            const sel = selected === d;
-                            return (
-                                <button
-                                    key={di}
-                                    type="button"
-                                    onClick={() => setSelected(d)}
-                                    className={[
-                                        "relative grid h-[42px] cursor-pointer place-items-center rounded-[12px] border-0 font-sans text-[0.9rem] font-medium transition-colors",
-                                        sel ? "bg-[#1e4c40] text-white" : n > 0 ? "bg-[#e3f2ee] text-[#1f4d3f] hover:outline hover:outline-2 hover:outline-[#b6d2c4]" : "bg-white text-[#29353b] hover:bg-[#f3f8f6]",
-                                        isToday(d) && !sel ? "outline outline-2 outline-[#4a9b8e]" : "",
-                                    ].join(" ")}
-                                >
-                                    {d}
-                                    {n > 0 && (
-                                        <span className={`absolute bottom-[3px] flex h-[12px] min-w-[12px] items-center justify-center rounded-full px-[3px] text-[8px] font-bold ${sel ? "bg-white text-[#1e4c40]" : "bg-[#345e51] text-white"}`}>
-                                            {n}
-                                        </span>
-                                    )}
-                                </button>
-                            );
-                        })}
-                    </div>
-                ))}
+            <div className="mt-2 flex flex-col gap-1.5" aria-busy={loading || undefined}>
+                {loading
+                    ? weeks.map((week, wi) => (
+                        <div key={wi} className="grid grid-cols-7 gap-1.5">
+                            {week.map((d, di) => (
+                                <SkeletonBlock key={di} className="h-[42px] rounded-[12px]" />
+                            ))}
+                        </div>
+                    ))
+                    : weeks.map((week, wi) => (
+                        <div key={wi} className="grid grid-cols-7 gap-1.5">
+                            {week.map((d, di) => {
+                                if (!d) return <span key={di} className="block h-[42px]" />;
+                                const n = (byDay[d] || []).length;
+                                const sel = selected === d;
+                                return (
+                                    <button
+                                        key={di}
+                                        type="button"
+                                        onClick={() => setSelected(d)}
+                                        className={[
+                                            "relative grid h-[42px] cursor-pointer place-items-center rounded-[12px] border-0 font-sans text-[0.9rem] font-medium transition-colors",
+                                            sel ? "bg-[#1e4c40] text-white" : n > 0 ? "bg-[#e3f2ee] text-[#1f4d3f] hover:outline hover:outline-2 hover:outline-[#b6d2c4]" : "bg-white text-[#29353b] hover:bg-[#f3f8f6]",
+                                            isToday(d) && !sel ? "outline outline-2 outline-[#4a9b8e]" : "",
+                                        ].join(" ")}
+                                    >
+                                        {d}
+                                        {n > 0 && (
+                                            <span className={`absolute bottom-[3px] flex h-[12px] min-w-[12px] items-center justify-center rounded-full px-[3px] text-[8px] font-bold ${sel ? "bg-white text-[#1e4c40]" : "bg-[#345e51] text-white"}`}>
+                                                {n}
+                                            </span>
+                                        )}
+                                    </button>
+                                );
+                            })}
+                        </div>
+                    ))}
             </div>
 
             {error && <p className="mb-0 mt-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-800">{error}</p>}
@@ -482,11 +491,12 @@ const CalendarCard = () => {
                         ? new Date(year, month, selected).toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" })
                         : "Select a date"}
                 </p>
-                {selected && list.length === 0 && (
+                {loading && <SkeletonBlock className="mt-2 h-4 w-48 max-w-full rounded-md" />}
+                {!loading && selected && list.length === 0 && (
                     <p className={`${serif} m-0 mt-2 text-[12px] text-[#666]`}>No clients booked on this date.</p>
                 )}
                 <ul className="m-0 mt-2 list-none p-0">
-                    {list.map((a) => {
+                    {!loading && list.map((a) => {
                         const [label, cls] = STATE_CHIP[a.state] || STATE_CHIP.pending;
                         return (
                             <li key={a.id} className="flex items-center justify-between gap-3 border-b border-[#e8e8e8] py-[8px] last:border-0">
@@ -653,6 +663,79 @@ const RecentActivity = ({ d }) => {
     );
 };
 
+function DashboardSkeleton() {
+    return (
+        <div className="space-y-[16px] sm:space-y-[24px] xl:space-y-[28px]" aria-busy="true" aria-live="polite">
+            <span className="sr-only">Loading dashboard content</span>
+            <div className="grid grid-cols-1 gap-[16px] sm:grid-cols-2 xl:grid-cols-4">
+                {[0, 1, 2, 3].map((i) => (
+                    <section key={i} className="rounded-[10px] border border-[#c7b6b6] bg-white p-[20px]">
+                        <SkeletonBlock className="h-4 w-28 rounded-md" />
+                        <SkeletonBlock className="mt-4 h-8 w-20 rounded-md" />
+                        <SkeletonBlock className="mt-3 h-3 w-32 rounded-md" />
+                    </section>
+                ))}
+            </div>
+            <div className="grid grid-cols-1 gap-[16px] xl:grid-cols-[1fr_324px] xl:gap-[24px]">
+                <section className="rounded-[10px] border border-[#c7b6b6] bg-white p-[20px] sm:p-[28px]">
+                    <SkeletonBlock className="h-5 w-40 rounded-md" />
+                    <SkeletonBlock className="mt-2 h-3 w-56 max-w-full rounded-md" />
+                    <SkeletonBlock className="mt-6 h-[190px] w-full rounded-md" />
+                </section>
+                <section className="rounded-[10px] border border-[#c7b6b6] bg-white p-[20px]">
+                    <SkeletonBlock className="h-5 w-40 rounded-md" />
+                    <SkeletonBlock className="mt-4 h-6 w-32 rounded-md" />
+                    <SkeletonBlock className="mt-6 h-[160px] w-full rounded-md" />
+                </section>
+            </div>
+            <div className="grid grid-cols-1 gap-[16px] xl:grid-cols-[570fr_412fr] xl:gap-[27px]">
+                <section className="rounded-[10px] border border-[#c7b6b6] bg-white p-[20px] sm:p-[23px]">
+                    <SkeletonBlock className="h-5 w-44 rounded-md" />
+                    <SkeletonBlock className="mt-3 h-3 w-52 rounded-md" />
+                    <div className="mt-5 grid grid-cols-7 gap-1.5">
+                        {Array.from({ length: 35 }, (_, i) => (
+                            <SkeletonBlock key={i} className="h-[42px] rounded-[12px]" />
+                        ))}
+                    </div>
+                    <SkeletonBlock className="mt-5 h-12 w-full rounded-md" />
+                </section>
+                <section className="rounded-[10px] border border-[#c7b6b6] bg-white p-[16px] sm:p-[20px]">
+                    <SkeletonBlock className="h-5 w-36 rounded-md" />
+                    <SkeletonBlock className="mt-3 h-3 w-32 rounded-md" />
+                    <div className="mt-6 space-y-4">
+                        {[0, 1, 2, 3].map((i) => (
+                            <SkeletonBlock key={i} className="h-[52px] w-full rounded-[10px]" />
+                        ))}
+                    </div>
+                </section>
+            </div>
+            <div className="grid grid-cols-1 items-start gap-[14px] md:grid-cols-2 xl:grid-cols-[2fr_1fr]">
+                <section className="min-h-[263px] rounded-[10px] border border-[#c7b6b6] bg-white px-5 py-6">
+                    <SkeletonBlock className="h-5 w-32 rounded-md" />
+                    <SkeletonBlock className="mt-3 h-3 w-44 rounded-md" />
+                    <div className="mt-6 space-y-4">
+                        {[0, 1, 2, 3].map((i) => (
+                            <SkeletonBlock key={i} className="h-5 w-full rounded-md" />
+                        ))}
+                    </div>
+                </section>
+                <section className="rounded-[10px] border border-[#c7b6b6] bg-white p-[20px]">
+                    <SkeletonBlock className="h-5 w-36 rounded-md" />
+                    <SkeletonBlock className="mt-3 h-3 w-44 rounded-md" />
+                    <div className="mt-6 space-y-4">
+                        {[0, 1, 2].map((i) => (
+                            <div key={i}>
+                                <SkeletonBlock className="h-4 w-full rounded-md" />
+                                <SkeletonBlock className="mt-2 h-3 w-24 rounded-md" />
+                            </div>
+                        ))}
+                    </div>
+                </section>
+            </div>
+        </div>
+    );
+}
+
 /* ------------------------------------------------------------------ */
 /*  Page                                                               */
 /* ------------------------------------------------------------------ */
@@ -671,6 +754,8 @@ export default function AffiliateDashboard() {
         };
     }, []);
 
+    const loading = data === null && !error;
+
     return (
         <div className="flex min-h-screen w-full bg-[#f2f2f2] antialiased">
             <style>{FONT_CSS}</style>
@@ -685,22 +770,28 @@ export default function AffiliateDashboard() {
                     <p className="mb-0 mt-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{error}</p>
                 )}
 
-                <StatCards d={data} />
+                {loading ? (
+                    <DashboardSkeleton />
+                ) : (
+                    <>
+                        <StatCards d={data} />
 
-                <div className="mt-[24px] grid grid-cols-1 gap-[16px] sm:mt-[32px] xl:mt-[41px] xl:grid-cols-[1fr_324px] xl:gap-[24px]">
-                    <MonthlyIncome d={data} />
-                    <Earnings d={data} />
-                </div>
+                        <div className="mt-[24px] grid grid-cols-1 gap-[16px] sm:mt-[32px] xl:mt-[41px] xl:grid-cols-[1fr_324px] xl:gap-[24px]">
+                            <MonthlyIncome d={data} />
+                            <Earnings d={data} />
+                        </div>
 
-                <div className="mt-[16px] grid grid-cols-1 gap-[16px] sm:mt-[24px] xl:mt-[28px] xl:grid-cols-[570fr_412fr] xl:gap-[27px]">
-                    <CalendarCard />
-                    <Today d={data} />
-                </div>
+                        <div className="mt-[16px] grid grid-cols-1 gap-[16px] sm:mt-[24px] xl:mt-[28px] xl:grid-cols-[570fr_412fr] xl:gap-[27px]">
+                            <CalendarCard />
+                            <Today d={data} />
+                        </div>
 
-                <div className="mt-[16px] grid grid-cols-1 items-start gap-[14px] sm:mt-[24px] md:grid-cols-2 xl:mt-[26px] xl:grid-cols-[2fr_1fr]">
-                    <YourSessions d={data} />
-                    <RecentActivity d={data} />
-                </div>
+                        <div className="mt-[16px] grid grid-cols-1 items-start gap-[14px] sm:mt-[24px] md:grid-cols-2 xl:mt-[26px] xl:grid-cols-[2fr_1fr]">
+                            <YourSessions d={data} />
+                            <RecentActivity d={data} />
+                        </div>
+                    </>
+                )}
             </main>
         </div>
     );

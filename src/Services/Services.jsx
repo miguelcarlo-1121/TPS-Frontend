@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { Navbar, Footer, Reveal, Photo, container, btnSolid } from "../components/Layout";
 import { apiFetch, API_URL } from "../auth";
 import { peso } from "../components/payUtils";
+import SkeletonBlock from "../components/SkeletonBlock";
 
 /* Where "Book now" goes. */
 const BOOK_TO = "/book";
@@ -340,21 +341,8 @@ function Blob({ Art, imageUrl, name }) {
         {/* sprout badge */}
         <span
           className="absolute -bottom-5 -left-3 grid h-[64px] w-[64px] place-items-center rounded-full bg-white text-[#10a28c] shadow-[0_12px_28px_-10px_rgba(32,62,67,0.55)] ring-4 ring-[#a9cbbd]"
-          aria-hidden="true"
         >
-          <svg
-            width="34"
-            height="34"
-            viewBox="0 0 64 64"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="3"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          >
-            <path d="M32 56V30" />
-            <path d="M32 34c0-10-7-16-18-16 0 10 7 16 18 16zM32 28c0-9 6-14 16-14 0 9-6 14-16 14z" />
-          </svg>
+          <img src="/img/Threefold%20logo.png" alt="Threefold logo" className="h-[42px] w-[42px] object-contain" />
         </span>
       </div>
     </div>
@@ -663,7 +651,37 @@ export default function Services() {
 
         <div className={`${container} pb-[clamp(40px,6vw,80px)]`}>
           {services === null && (
-            <p className="py-16 text-center font-serif text-[15px] text-[#777]">Loading services…</p>
+            <div className="py-[clamp(44px,6vw,80px)]" role="status" aria-label="Loading services">
+              <span className="sr-only">Loading services…</span>
+              {[0, 1].map((item) => (
+                <section
+                  key={item}
+                  className="grid grid-cols-2 items-center gap-[clamp(28px,5vw,80px)] py-[clamp(32px,5vw,64px)] max-[900px]:grid-cols-1"
+                >
+                  <div className="space-y-5">
+                    <div className="flex items-center gap-3.5">
+                      <SkeletonBlock className="size-[52px] shrink-0 rounded-full" />
+                      <div className="grid flex-1 gap-2">
+                        <SkeletonBlock className="h-3 w-28 rounded" />
+                        <SkeletonBlock className="h-3 w-36 rounded" />
+                      </div>
+                    </div>
+                    <SkeletonBlock className="h-9 w-3/4 rounded-lg" />
+                    <div className="grid gap-2">
+                      <SkeletonBlock className="h-4 w-full rounded" />
+                      <SkeletonBlock className="h-4 w-11/12 rounded" />
+                      <SkeletonBlock className="h-4 w-2/3 rounded" />
+                    </div>
+                    <div className="flex gap-2">
+                      <SkeletonBlock className="h-7 w-24 rounded-full" />
+                      <SkeletonBlock className="h-7 w-28 rounded-full" />
+                      <SkeletonBlock className="h-7 w-20 rounded-full" />
+                    </div>
+                  </div>
+                  <SkeletonBlock className="mx-auto aspect-[500/440] w-full max-w-[520px] rounded-[140px_28px_140px_28px]" />
+                </section>
+              ))}
+            </div>
           )}
           {services && services.length === 0 && (
             <p className="py-16 text-center font-serif text-[15px] text-[#777]">

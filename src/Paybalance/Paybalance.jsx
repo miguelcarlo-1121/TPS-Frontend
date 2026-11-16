@@ -3,6 +3,7 @@ import { Link, useNavigate, useParams } from "react-router-dom";
 import { Navbar, Footer, Reveal, container, btnSolid, btnGhost } from "../components/Layout";
 import { apiFetch } from "../auth";
 import { peso, to12, resizeToJpeg } from "../components/payUtils";
+import SkeletonBlock from "../components/SkeletonBlock";
 
 /* Route: <Route path="/appointments/balance/:id" element={<PayBalance />} /> */
 
@@ -111,7 +112,14 @@ export default function PayBalance() {
       </p>
     );
   } else if (!data) {
-    body = <p className="text-sm text-[#666]">Loading your balance…</p>;
+    body = (
+      <div className="grid gap-5 rounded-2xl border border-[#b6d2c4] bg-[#f9fcfb] px-6 py-10" role="status" aria-label="Loading balance">
+        <span className="sr-only">Loading your balance…</span>
+        <SkeletonBlock className="mx-auto h-6 w-48 rounded" />
+        <SkeletonBlock className="mx-auto h-3 w-full max-w-md rounded" />
+        <SkeletonBlock className="mx-auto h-11 w-40 rounded-lg" />
+      </div>
+    );
   } else if (sent) {
     body = (
       <Panel tone="ok" title="Receipt sent" action={back}>
@@ -399,7 +407,20 @@ function BalanceChooser() {
             </div>
           </Reveal>
 
-          {loading && <p className="text-sm text-[#666]">Loading your balances…</p>}
+          {loading && (
+            <div className="grid gap-4" role="status" aria-label="Loading balances">
+              <span className="sr-only">Loading your balances…</span>
+              {[0, 1, 2].map((item) => (
+                <div key={item} className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-[#666]/20 bg-white p-5">
+                  <div className="grid flex-1 gap-2">
+                    <SkeletonBlock className="h-5 w-48 max-w-full rounded" />
+                    <SkeletonBlock className="h-3 w-64 max-w-full rounded" />
+                  </div>
+                  <SkeletonBlock className="h-5 w-24 rounded" />
+                </div>
+              ))}
+            </div>
+          )}
           {error && (
             <p role="alert" className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
               {error}

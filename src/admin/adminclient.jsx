@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import AdminNavigation from "./adminnavigation";
 import ProfileMenu from "../components/ProfileMenu";
+import SkeletonBlock from "../components/SkeletonBlock";
 import { apiFetch } from "../auth";
 import { sendClientMessage } from "./messageApi";
 
@@ -266,7 +267,7 @@ const ClientDrawer = ({ clientId, onClose, onSave, onMessage }) => {
                         <Avatar name={form.name || "?"} size={48} />
                         <div className="min-w-0">
                             <h2 className={`${serif} truncate text-[20px] font-bold text-[#2f4a42] sm:text-[22px]`}>
-                                {loading ? "Loading client…" : form.name}
+                                {loading ? <SkeletonBlock className="h-6 w-40 rounded" /> : form.name}
                             </h2>
                             <p className={`${serif} text-[12px] text-[#666]`}>
                                 {client?.email} · Client since {fmtDate(client?.joined)}
@@ -294,7 +295,14 @@ const ClientDrawer = ({ clientId, onClose, onSave, onMessage }) => {
                 {/* Body */}
                 <div className="flex-1 overflow-y-auto px-5 py-5 sm:px-[28px]">
                     {loading ? (
-                        <p className="text-sm text-[#777] py-8 text-center">Loading client records…</p>
+                        <div className="space-y-5 py-2" aria-busy="true">
+                            {[0, 1, 2, 3].map((row) => (
+                                <div key={row}>
+                                    <SkeletonBlock className="mb-2 h-3 w-24 rounded" />
+                                    <SkeletonBlock className="h-10 w-full rounded-md" />
+                                </div>
+                            ))}
+                        </div>
                     ) : (
                         <>
                             {tab === "Profile" && (
@@ -486,7 +494,9 @@ export default function AdminClients() {
                             }`}
                         >
                             <div className={`${inter} text-[10px] font-bold sm:mt-[24px] sm:text-[11px] ${i === 0 ? "text-[#a8c8b8]" : "text-[#666]"}`}>{label}</div>
-                            <div className={`${inter} mt-[8px] text-[26px] font-bold sm:mt-[10px] sm:text-[32px] ${i === 0 ? "text-white" : "text-[#202020]"}`}>{n}</div>
+                            <div className={`${inter} mt-[8px] text-[26px] font-bold sm:mt-[10px] sm:text-[32px] ${i === 0 ? "text-white" : "text-[#202020]"}`}>
+                                {loading ? <SkeletonBlock className="h-8 w-12 rounded" /> : n}
+                            </div>
                         </div>
                     ))}
                 </div>
@@ -496,7 +506,7 @@ export default function AdminClients() {
                         <div>
                             <h2 className={`${serif} text-[16px] text-black font-bold`}>Registered clients</h2>
                             <p className={`${serif} text-[11px] text-[#666]`}>
-                                {loading ? "Loading clients…" : `${filtered.length} client records`}
+                                {loading ? <SkeletonBlock className="mt-1 h-3 w-24 rounded" /> : `${filtered.length} client records`}
                             </p>
                         </div>
                         <div className="flex flex-col gap-[12px] sm:flex-row sm:items-center">
@@ -530,11 +540,24 @@ export default function AdminClients() {
                             </thead>
                             <tbody>
                                 {loading ? (
-                                    <tr>
-                                        <td colSpan={6} className="py-12 text-center text-sm text-[#777]">
-                                            Loading client records from database…
-                                        </td>
-                                    </tr>
+                                    [0, 1, 2, 3, 4].map((row) => (
+                                        <tr key={row} className="border-t border-[#e8e8e8]" aria-hidden="true">
+                                            <td className="px-[24px] py-[12px]">
+                                                <div className="flex items-center gap-[12px]">
+                                                    <SkeletonBlock className="size-10 shrink-0 rounded-full" />
+                                                    <div className="min-w-[140px] flex-1">
+                                                        <SkeletonBlock className="h-3 w-28 max-w-full rounded" />
+                                                        <SkeletonBlock className="mt-2 h-2.5 w-36 max-w-full rounded" />
+                                                    </div>
+                                                </div>
+                                            </td>
+                                            <td><SkeletonBlock className="h-3 w-24 rounded" /></td>
+                                            <td><SkeletonBlock className="h-3 w-24 rounded" /></td>
+                                            <td><SkeletonBlock className="h-3 w-8 rounded" /></td>
+                                            <td><SkeletonBlock className="h-5 w-16 rounded-full" /></td>
+                                            <td className="px-[24px]"><SkeletonBlock className="ml-auto h-7 w-16 rounded" /></td>
+                                        </tr>
+                                    ))
                                 ) : filtered.length === 0 ? (
                                     <tr>
                                         <td colSpan={6} className={`${serif} px-[24px] py-[48px] text-center text-[13px] text-[#666]`}>

@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { Navbar, Footer, Reveal, SectionHead, Photo, btnSolid } from "../components/Layout";
 import { CLINIC } from "../data/clinic";
 import { useHomeContent } from "../data/useHomecontent";
+import { API_URL } from "../auth";
 
 const ICONS = {
   select: <><rect x="14" y="10" width="36" height="46" rx="5" /><path d="M24 24h16M24 34h16M24 44h10" /></>,
@@ -171,6 +172,79 @@ const SERVICES = [
   { icon: "check", photo: "service-3.png", meta: "1 Hour Comprehensive Review", title: "Assessment & Consultation", text: "A thorough initial review and diagnostic structured interview. This provides a holistic understanding of your unique mental health landscape, allowing us to recommend highly tailored, effective approaches just for you." },
 ];
 
+function serviceImageSource(photo) {
+  const value = typeof photo === "string" ? photo.trim() : "";
+  if (!value) return null;
+  if (/^(https?:)?\/\//i.test(value)) {
+    try {
+      return new URL(value, API_URL).toString();
+    } catch {
+      return value;
+    }
+  }
+  if (value.startsWith("/img/")) return value;
+  if (value.startsWith("/storage/") || value.startsWith("storage/")) {
+    try {
+      return new URL(value, API_URL).toString();
+    } catch {
+      return value;
+    }
+  }
+  return value.startsWith("/") ? value : `/img/${value}`;
+}
+
+function DashboardServiceArtwork({ photo, title, icon }) {
+  const [failedSrc, setFailedSrc] = useState("");
+  const src = serviceImageSource(photo);
+  const showPhoto = src && failedSrc !== src;
+  const leaf = "rounded-[140px_28px_140px_28px]";
+
+  if (!showPhoto) {
+    return (
+      <div className="relative z-10 mx-auto flex aspect-[500/440] w-full max-w-[520px] items-center justify-center p-[6%]">
+        <Icon name={icon} size={120} className="h-full w-full p-[30%] text-tf-teal" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="relative z-10 mx-auto w-full max-w-[520px] px-5 pb-6 pt-5">
+      <div className="group relative">
+        <svg
+          viewBox="0 0 72 72"
+          className="pointer-events-none absolute -right-5 -top-5 h-[72px] w-[72px]"
+          aria-hidden="true"
+        >
+          {[0, 1, 2, 3].flatMap((r) =>
+            [0, 1, 2, 3].map((c) => (
+              <circle key={`${r}${c}`} cx={9 + c * 18} cy={9 + r * 18} r="2.4" fill="#10a28c" opacity="0.55" />
+            ))
+          )}
+        </svg>
+        <div
+          className={`pointer-events-none absolute inset-0 translate-x-4 translate-y-4 border-2 border-[#10a28c]/60 ${leaf}`}
+          aria-hidden="true"
+        />
+        <figure className={`relative m-0 aspect-[5/4] overflow-hidden bg-[#e8f1ee] shadow-[0_26px_50px_-26px_rgba(32,62,67,0.65)] ${leaf}`}>
+          <img
+            src={src}
+            alt={`${title} service`}
+            loading="lazy"
+            className="h-full w-full object-cover object-center transition-transform duration-700 ease-tf group-hover:scale-[1.04]"
+            onError={() => setFailedSrc(src)}
+          />
+          <div className={`pointer-events-none absolute inset-0 ring-1 ring-inset ring-black/10 ${leaf}`} aria-hidden="true" />
+        </figure>
+        <span
+          className="absolute -bottom-5 -left-3 grid h-[64px] w-[64px] place-items-center rounded-full bg-white text-[#10a28c] shadow-[0_12px_28px_-10px_rgba(32,62,67,0.55)] ring-4 ring-[#a9cbbd]"
+        >
+          <img src="/img/Threefold%20logo.png" alt="Threefold logo" className="h-[42px] w-[42px] object-contain" />
+        </span>
+      </div>
+    </div>
+  );
+}
+
 const FAQS = [
   { q: "Is everything I share confidential?", a: "Yes. Your sessions are private and handled according to professional ethics and applicable privacy laws. Limits to confidentiality are explained before your first session." },
   { q: "Do you offer online and in-person sessions?", a: "Yes. You can choose a virtual or an in-person appointment when you book." },
@@ -183,15 +257,40 @@ const FAQS = [
 /* ---------- Sections ---------- */
 function Hero({ data }) {
   const h = data || {};
+  const [photoFailed, setPhotoFailed] = useState(false);
+  const photoSrc = serviceImageSource(h.photo);
+  const showPhoto = photoSrc && !photoFailed;
+
   return (
     <section
       id="top"
-      className="relative flex items-center overflow-hidden isolate min-h-[clamp(600px,75vh,750px)] bg-[url('/img/hero-bg.svg'),linear-gradient(100deg,#faf9f6_0%,#f1f6f3_55%,#e3efe9_100%)] bg-center bg-cover bg-no-repeat"
+      className={`relative flex items-center overflow-hidden isolate min-h-[clamp(560px,75vh,720px)] ${showPhoto
+        ? "bg-[#faf9f6]"
+        : "bg-[url('/img/hero-bg.svg'),linear-gradient(100deg,#faf9f6_0%,#f1f6f3_55%,#e3efe9_100%)] bg-center bg-cover bg-no-repeat"
+        }`}
     >
-      <div
-        className="absolute inset-0 -z-[2] bg-[linear-gradient(90deg,#faf9f6_0%,#faf9f6_45%,rgba(250,249,246,0)_90%)]"
-        aria-hidden="true"
-      />
+      {showPhoto ? (
+        <>
+          {/* Admin's image, always shown as a full-width banner (any size or ratio is cropped to fit) */}
+          <img
+            src={photoSrc}
+            alt="Threefold mental health services"
+            className="absolute inset-0 -z-[2] h-full w-full object-cover object-[72%_center] md:object-right"
+            onError={() => setPhotoFailed(true)}
+          />
+          {/* Soft fade on the left so the text is always readable, whatever the image is */}
+          <div
+            className="absolute inset-0 -z-[1] bg-[linear-gradient(90deg,#faf9f6_0%,rgba(250,249,246,0.94)_28%,rgba(250,249,246,0.6)_46%,rgba(250,249,246,0.15)_68%,rgba(250,249,246,0)_85%)] max-md:bg-[linear-gradient(180deg,rgba(250,249,246,0.94)_0%,rgba(250,249,246,0.82)_55%,rgba(250,249,246,0.4)_100%)]"
+            aria-hidden="true"
+          />
+        </>
+      ) : (
+        <div
+          className="absolute inset-0 -z-[2] bg-[linear-gradient(90deg,#faf9f6_0%,#faf9f6_45%,rgba(250,249,246,0)_90%)]"
+          aria-hidden="true"
+        />
+      )}
+
       <div className={`${containerClass} relative z-10 py-20`}>
         <div className="max-w-[540px]">
           <p className={`font-serif text-sm tracking-[0.08em] text-[#5a615d] mb-3 ${riseBase} [animation-delay:0.05s]`}>
@@ -288,19 +387,7 @@ function Services({ items }) {
               className={`group grid grid-cols-2 items-center gap-[clamp(40px,6vw,96px)] mt-[clamp(64px,8vw,120px)] max-[900px]:grid-cols-1`}
             >
               <div className={`relative grid place-items-center p-5 ${flip ? "order-2 max-[900px]:order-0" : ""}`}>
-                <div className="absolute w-full aspect-[522/404] rounded-[210px_190px_240px_130px] bg-tf-soft transition-[border-radius,transform] duration-[1.2s] ease-tf group-hover:rounded-[130px_240px_190px_210px] group-hover:-rotate-2" />
-                <Photo
-                  src={`/img/${s.photo}`}
-                  className="relative w-[95%] h-auto rounded-2xl object-cover"
-                  alt={s.title}
-                  fallback={
-                    <Icon
-                      name={s.icon}
-                      size={120}
-                      className="relative w-[32%] h-auto text-white transition-transform duration-[600ms] ease-tf group-hover:scale-[1.08] group-hover:-rotate-[3deg]"
-                    />
-                  }
-                />
+                <DashboardServiceArtwork photo={s.photo} title={s.title} icon={s.icon} />
               </div>
               <div>
                 <p className="m-0 flex items-center gap-3 text-[#6c7d82] font-medium text-[15px] uppercase tracking-[0.05em]">
@@ -551,9 +638,123 @@ function ContactInquiry() {
   );
 }
 
+const HomeSkeletonBar = ({ className = "" }) => (
+  <div className={`animate-pulse rounded-md bg-[#e3ece8] ${className}`} />
+);
+
+function HomeSkeleton() {
+  return (
+    <div className="font-sans text-black bg-tf-bg overflow-x-hidden antialiased" aria-busy="true" aria-live="polite">
+      <span className="sr-only">Loading homepage content</span>
+      <Navbar />
+      <main>
+        <section className="min-h-[clamp(600px,75vh,750px)] bg-[linear-gradient(100deg,#faf9f6_0%,#f1f6f3_55%,#e3efe9_100%)]">
+          <div className={`${containerClass} grid items-center gap-10 py-20 md:grid-cols-2`}>
+            <div>
+              <HomeSkeletonBar className="mb-6 h-3 w-44" />
+              <HomeSkeletonBar className="mb-3 h-12 w-full max-w-[500px]" />
+              <HomeSkeletonBar className="mb-3 h-12 w-4/5 max-w-[420px]" />
+              <HomeSkeletonBar className="mt-6 h-4 w-full max-w-[450px]" />
+              <HomeSkeletonBar className="mt-3 h-4 w-5/6 max-w-[390px]" />
+              <div className="mt-9 flex flex-wrap items-center gap-6">
+                <HomeSkeletonBar className="h-12 w-52 rounded-lg" />
+                <HomeSkeletonBar className="h-4 w-36" />
+              </div>
+            </div>
+            <HomeSkeletonBar className="aspect-[5/4] w-full max-w-[560px] justify-self-center rounded-[120px_24px_120px_24px]" />
+          </div>
+        </section>
+
+        <section className="bg-tf-mint py-20">
+          <div className={containerClass}>
+            <HomeSkeletonBar className="h-3 w-32" />
+            <HomeSkeletonBar className="mt-4 h-8 w-80 max-w-full" />
+            <HomeSkeletonBar className="mt-3 h-4 w-[min(520px,90%)]" />
+            <div className="mt-12 grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
+              {[0, 1, 2, 3].map((item) => (
+                <div key={item} className="rounded-2xl border border-black/5 bg-white p-6">
+                  <HomeSkeletonBar className="mx-auto h-16 w-16 rounded-full" />
+                  <HomeSkeletonBar className="mx-auto mt-5 h-4 w-3/4" />
+                  <HomeSkeletonBar className="mt-4 h-3 w-full" />
+                  <HomeSkeletonBar className="mt-2 h-3 w-5/6" />
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        <section className="bg-white py-20">
+          <div className={containerClass}>
+            <HomeSkeletonBar className="mx-auto h-3 w-28" />
+            <HomeSkeletonBar className="mx-auto mt-4 h-8 w-72 max-w-full" />
+            <div className="mt-12 grid grid-cols-1 gap-8 md:grid-cols-3">
+              {[0, 1, 2].map((item) => (
+                <div key={item} className="overflow-hidden rounded-2xl border border-black/5 bg-white">
+                  <HomeSkeletonBar className="aspect-[5/4] w-full rounded-none" />
+                  <div className="p-6">
+                    <HomeSkeletonBar className="h-3 w-24" />
+                    <HomeSkeletonBar className="mt-4 h-5 w-3/4" />
+                    <HomeSkeletonBar className="mt-4 h-3 w-full" />
+                    <HomeSkeletonBar className="mt-2 h-3 w-5/6" />
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        <section className="bg-[#faf9f6] py-20">
+          <div className={`${containerClass} max-w-[900px]`}>
+            <HomeSkeletonBar className="mx-auto h-3 w-20" />
+            <HomeSkeletonBar className="mx-auto mt-4 h-8 w-64 max-w-full" />
+            <div className="mt-10 flex flex-col gap-3">
+              {[0, 1, 2, 3, 4].map((item) => (
+                <div key={item} className="flex items-center justify-between rounded-xl border border-black/5 bg-white px-5 py-5">
+                  <HomeSkeletonBar className="h-4 w-3/4 max-w-[420px]" />
+                  <HomeSkeletonBar className="h-7 w-7 rounded-full" />
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        <section className="bg-white py-20">
+          <div className={containerClass}>
+            <HomeSkeletonBar className="mx-auto h-3 w-24" />
+            <HomeSkeletonBar className="mx-auto mt-4 h-8 w-72 max-w-full" />
+            <div className="mt-10 grid grid-cols-1 gap-8 md:grid-cols-2">
+              <div className="flex flex-col gap-4">
+                {[0, 1, 2].map((item) => (
+                  <div key={item} className="rounded-xl border border-black/5 bg-white p-5">
+                    <HomeSkeletonBar className="h-3 w-20" />
+                    <HomeSkeletonBar className="mt-4 h-4 w-3/4" />
+                  </div>
+                ))}
+              </div>
+              <div className="rounded-2xl border border-black/5 bg-white p-6">
+                <HomeSkeletonBar className="h-4 w-32" />
+                <div className="mt-6 grid grid-cols-2 gap-4">
+                  <HomeSkeletonBar className="h-10 w-full" />
+                  <HomeSkeletonBar className="h-10 w-full" />
+                </div>
+                <HomeSkeletonBar className="mt-4 h-10 w-full" />
+                <HomeSkeletonBar className="mt-4 h-28 w-full" />
+                <HomeSkeletonBar className="mt-5 h-10 w-full rounded-lg" />
+              </div>
+            </div>
+          </div>
+        </section>
+      </main>
+      <Footer />
+    </div>
+  );
+}
+
 /* ---------- Page ---------- */
 export default function Home() {
-  const content = useHomeContent();
+  const { content, loading } = useHomeContent();
+
+  if (loading) return <HomeSkeleton />;
 
   return (
     <div className="font-sans text-black bg-tf-bg overflow-x-hidden antialiased">

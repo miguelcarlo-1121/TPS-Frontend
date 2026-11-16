@@ -1,8 +1,11 @@
 import { createContext, useContext, useEffect, useMemo, useState } from "react";
+import { useLocation } from "react-router-dom";
 import { getPsychologist } from "../data/clinic";
 import { apiFetch } from "../auth";
+import { getServiceProviderDisplay } from "./serviceProviderDisplay";
 
 const STORAGE_KEY = "tf_booking";
+const RESUMABLE_BOOKING_PATHS = ["/book/date-time", "/book/info", "/book/review"];
 
 const defaultBooking = {
   serviceId: null,
@@ -31,6 +34,7 @@ const defaultBooking = {
   approvalStatus: "none", // none | payment_pending | psychologist_pending | approved | rejected
   consentComplete: false,
   referenceNumber: "",
+  resumePath: null,
 };
 
 function load() {
@@ -52,6 +56,7 @@ function load() {
 const BookingContext = createContext(null);
 
 export function BookingProvider({ children }) {
+  const { pathname } = useLocation();
   const [booking, setBooking] = useState(load);
   const [services, setServices] = useState([]);
   const [servicesLoading, setServicesLoading] = useState(true);
@@ -110,6 +115,13 @@ export function BookingProvider({ children }) {
     sessionStorage.setItem(STORAGE_KEY, JSON.stringify(booking));
   }, [booking]);
 
+  useEffect(() => {
+    if (!RESUMABLE_BOOKING_PATHS.includes(pathname)) return;
+    setBooking((current) =>
+      current.resumePath === pathname ? current : { ...current, resumePath: pathname }
+    );
+  }, [pathname]);
+
   const update = (patch) => setBooking((b) => ({ ...b, ...patch }));
   const updateClient = (patch) =>
     setBooking((b) => ({ ...b, client: { ...b.client, ...patch } }));
@@ -155,18 +167,18 @@ export function BookingProvider({ children }) {
   }, [booking.serviceId, booking.assessmentType, service]);
 
   const feeLabel = `₱${fee.toLocaleString()}`;
+  const providerDisplay = getServiceProviderDisplay(
+    booking.serviceId,
+    service?.name,
+    psychologist?.name || "To be set"
+  );
 
   const summaryRows = [
     { label: "SERVICE", value: service?.name || "To be set" },
     ...(booking.serviceId === "assessment"
       ? [{ label: "TYPE", value: booking.assessmentType?.name || "To be set" }]
       : []),
-    {
-      label: "PSYCHOLOGIST",
-      value:
-        psychologist?.name ||
-        (booking.serviceId === "psychotherapy" ? "To be set" : booking.serviceId ? "Auto-assigned" : "To be set"),
-    },
+    { label: providerDisplay.summaryLabel, value: providerDisplay.value },
     { label: "DATE & TIME", value: dateLabel },
   ];
 

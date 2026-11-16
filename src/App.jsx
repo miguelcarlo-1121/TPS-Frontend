@@ -23,6 +23,7 @@ import AdminAccounts from "./admin/adminaccounts";
 import AdminServices from "./admin/adminservices";
 import AdminClient from "./admin/adminclient";
 import AdminHome from "./admin/adminhome";
+import AdminActivityLogs from "./admin/adminactivitylogs";
 import AffiliateDashboard from "./affiliate/affiliatedashboard";
 import AffiliateAppointment from "./affiliate/affiliateappointment";
 import AffiliateSchedule from "./affiliate/affiliateschedule";
@@ -109,6 +110,8 @@ export default function App() {
       <Route path="/admin/client" element={<AdminOnly><AdminClient /></AdminOnly>} />
       <Route path="/admin/home" element={<AdminOnly><AdminHome /></AdminOnly>} />
       <Route path="/admin/messages" element={<AdminOnly><AdminMessages /></AdminOnly>} />
+      <Route path="/admin/activity-logs" element={<AdminOnly><AdminActivityLogs /></AdminOnly>} />
+      <Route path="/admin/activitylogs" element={<AdminOnly><AdminActivityLogs /></AdminOnly>} />
       {/* AFFILIATE */}
       <Route path="/affiliate" element={<AffiliateOnly><AffiliateDashboard /></AffiliateOnly>} />
       <Route path="/affiliate/appointment" element={<AffiliateOnly><AffiliateAppointment /></AffiliateOnly>} />

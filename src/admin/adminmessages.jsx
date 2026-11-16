@@ -7,6 +7,7 @@ import { Search, Send, MessageSquare, Phone, Video } from "lucide-react"; // Idi
 import { Photo } from "../components/Layout";
 import ProfileMenu from "../components/ProfileMenu";
 import VideoCall from "../components/VideoCall";
+import SkeletonBlock from "../components/SkeletonBlock";
 
 const avatarWrap = "size-11 shrink-0 overflow-hidden rounded-full bg-[#aac6b7]";
 const avatarImg = "size-full object-cover";
@@ -20,8 +21,10 @@ export default function AdminMessages() {
   const initialContactId = searchParams.get("contact_id");
 
   const [contacts, setContacts] = useState([]);
+  const [contactsLoading, setContactsLoading] = useState(true);
   const [activeChat, setActiveChat] = useState(null);
   const [messages, setMessages] = useState([]);
+  const [messagesLoading, setMessagesLoading] = useState(false);
   const [message, setMessage] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const messagesEndRef = useRef(null);
@@ -33,6 +36,7 @@ export default function AdminMessages() {
 
   // 1. Kunin lahat ng users
   useEffect(() => {
+    setContactsLoading(true);
     apiFetch("/messages/contacts")
       .then((data) => {
         setContacts(data);
@@ -42,15 +46,18 @@ export default function AdminMessages() {
           setActiveChat(data[0].id);
         }
       })
-      .catch(console.error);
+      .catch(console.error)
+      .finally(() => setContactsLoading(false));
   }, [initialContactId]);
 
   // 2. Load messages
   useEffect(() => {
     if (!activeChat) return;
+    setMessagesLoading(true);
     apiFetch(`/messages?contact_id=${activeChat}`)
       .then((data) => setMessages(data))
-      .catch(console.error);
+      .catch(console.error)
+      .finally(() => setMessagesLoading(false));
   }, [activeChat]);
 
   // 3. Real-time Listener
@@ -127,7 +134,15 @@ export default function AdminMessages() {
               </div>
             </div>
             <div className="flex-1 overflow-y-auto">
-              {filteredContacts.map((c) => (
+              {contactsLoading ? [0, 1, 2, 3].map((row) => (
+                <div key={row} className="flex items-center gap-3 border-b border-gray-100 p-4" aria-hidden="true">
+                  <SkeletonBlock className="size-11 shrink-0 rounded-full" />
+                  <div className="flex-1">
+                    <SkeletonBlock className="h-3 w-32 rounded" />
+                    <SkeletonBlock className="mt-2 h-2.5 w-20 rounded" />
+                  </div>
+                </div>
+              )) : filteredContacts.map((c) => (
                 <button
                   key={c.id}
                   onClick={() => setActiveChat(c.id)}
@@ -186,11 +201,39 @@ export default function AdminMessages() {
               </header>
 
               <div className="flex-1 overflow-y-auto p-6 flex flex-col gap-4 bg-[#fafafa]">
-                {messages.length === 0 ? (
+                {messagesLoading ? (
+                  <div className="space-y-4" aria-busy="true">
+                    {[0, 1, 2].map((row) => (
+                      <div key={row} className={`flex ${row === 1 ? "justify-end" : ""}`}>
+                        <div className="w-2/3 max-w-[420px] rounded-2xl border border-gray-200 bg-white p-4">
+                          <SkeletonBlock className="h-3 w-full rounded" />
+                          <SkeletonBlock className="mt-2 h-3 w-3/4 rounded" />
+                          <SkeletonBlock className="mt-3 h-2 w-14 rounded" />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : messages.length === 0 ? (
                   <div className="m-auto text-center text-gray-400">
                     <MessageSquare size={48} className="mx-auto mb-4 opacity-50" />
                     <p>No messages yet. Say hi to {active.name}!</p>
                   </div>
+                ) : contactsLoading ? (
+                  <section className="flex-1 bg-white p-6" aria-busy="true">
+                    <div className="flex items-center gap-3 border-b border-gray-100 pb-4">
+                      <SkeletonBlock className="size-11 rounded-full" />
+                      <div>
+                        <SkeletonBlock className="h-4 w-36 rounded" />
+                        <SkeletonBlock className="mt-2 h-3 w-20 rounded" />
+                      </div>
+                    </div>
+                    <div className="flex h-[60%] flex-col justify-end gap-4 py-6">
+                      <SkeletonBlock className="h-12 w-2/3 rounded-2xl" />
+                      <SkeletonBlock className="ml-auto h-12 w-1/2 rounded-2xl" />
+                      <SkeletonBlock className="h-12 w-3/4 rounded-2xl" />
+                    </div>
+                    <SkeletonBlock className="h-12 w-full rounded-xl" />
+                  </section>
                 ) : (
                   messages.map((msg) => {
                     const isMe = msg.sender_id === currentUser?.id;
