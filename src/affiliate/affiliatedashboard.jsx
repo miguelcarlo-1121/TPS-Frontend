@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import AffiliateNavigation from "./affiliatenav";
 import { Logo, Photo } from "../components/Layout";
 import ProfileMenu from "../components/ProfileMenu";
-import { apiFetch } from "../auth";
+import { apiFetch, getFullName } from "../auth";
 import { peso, to12 } from "../components/payUtils";
 import SkeletonBlock from "../components/SkeletonBlock";
 
@@ -159,7 +159,7 @@ const Header = ({ onMenu, user, attention }) => {
                 </div>
                 <h1 className={`${serif} mt-[8px] text-[26px] font-bold leading-[1.15] sm:text-[34px] lg:text-[40px]`}>
                     <span className="text-[#2f4a42]">{greet}, </span>
-                    <span className="text-[#4a9b8e]">{[user?.first_name, user?.last_name].filter(Boolean).join(" ") || "there"}</span>
+                    <span className="text-[#4a9b8e]">{getFullName(user, "there")}</span>
                 </h1>
                 <DateChip className="mt-[12px] inline-flex sm:hidden" />
             </div>

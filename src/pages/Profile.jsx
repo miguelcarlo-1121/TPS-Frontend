@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Navbar, Footer } from "../components/Layout";
-import { apiFetch } from "../auth";
+import { apiFetch, getFullName } from "../auth";
 import { Avatar, displayEmail } from "../components/ProfileMenu";
 import AdminNavigation from "../admin/adminnavigation";
 import AffiliateNavigation from "../affiliate/affiliatenav";
@@ -364,7 +364,7 @@ export default function Profile() {
 
           <div className="min-w-0 flex-1">
             <div className="font-serif text-2xl text-[#202020]">
-              {user.first_name} {user.last_name}
+              {getFullName(user)}
             </div>
             <div className="mt-1 flex flex-wrap gap-2">
               <span className="rounded-full bg-tf-soft px-3 py-1 text-xs font-bold text-tf-teal">

@@ -3,17 +3,19 @@ import Pusher from "pusher-js";
 
 window.Pusher = Pusher;
 
+const scheme = import.meta.env.VITE_REVERB_SCHEME || "http";
+const port = Number(import.meta.env.VITE_REVERB_PORT || 8080);
+
 const echo = new Echo({
   broadcaster: "reverb",
-  key: "ILAGAY_MO_DITO_ANG_REVERB_APP_KEY", // Hanapin sa .env ng Laravel
-  wsHost: "127.0.0.1",
-  wsPort: 8080,
-  wssPort: 8080,
-  forceTLS: false,
-  encrypted: true,
+  key: import.meta.env.VITE_REVERB_APP_KEY,
+  wsHost: import.meta.env.VITE_REVERB_HOST || window.location.hostname,
+  wsPort: port,
+  wssPort: port,
+  forceTLS: scheme === "https",
   disableStats: true,
-  enabledTransports: ["ws", "wss"],
-  authEndpoint: "http://localhost:8000/broadcasting/auth",
+  enabledTransports: scheme === "https" ? ["wss"] : ["ws"],
+  authEndpoint: `${scheme}://localhost:8000/broadcasting/auth`,
   auth: {
     headers: {
       Authorization: `Bearer ${localStorage.getItem("token")}`,

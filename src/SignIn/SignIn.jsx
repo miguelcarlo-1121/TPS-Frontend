@@ -93,6 +93,8 @@ export default function SignIn() {
   const [verifyEmail, setVerifyEmail] = useState("");
   const [code, setCode] = useState("");
   const [cooldown, setCooldown] = useState(0);
+  const [verifyRemember, setVerifyRemember] = useState(true);
+  const [facebookAccessToken, setFacebookAccessToken] = useState("");
 
   const googleBtnRef = useRef(null);
   const googleHandlerRef = useRef(null);
@@ -115,12 +117,14 @@ export default function SignIn() {
     // Client -> back to where they came from (default /appointments). Admin/Affiliate -> their dashboard.
     const target = data.user.role === "CLIENT" ? from : ROLE_HOME[data.user.role] || from;
     navigate(target, { replace: true });
+    window.dispatchEvent(new Event("tf-auth-change"));
   };
 
   // Common handler for any auth response. If the backend says the email
   // is not verified yet, switch to the code-entry screen instead of logging in.
   const handleAuthResponse = (data, rememberMe) => {
     if (data?.needs_verification) {
+      setVerifyRemember(rememberMe);
       setVerifyEmail(data.email || email);
       setCode("");
       setCooldown(30);
@@ -130,6 +134,14 @@ export default function SignIn() {
       return;
     }
     finish(data, rememberMe);
+  };
+
+  const handleAuthError = (err, rememberMe) => {
+    if (err?.data?.needs_verification) {
+      handleAuthResponse(err.data, rememberMe);
+      return;
+    }
+    fail(err.message);
   };
 
   // ---------- Google ----------
@@ -146,7 +158,7 @@ export default function SignIn() {
       });
       handleAuthResponse(data, true);
     } catch (err) {
-      fail(err.message);
+      handleAuthError(err, true);
     } finally {
       setSocialLoading("");
     }
@@ -218,8 +230,17 @@ export default function SignIn() {
           method: "POST",
           body: JSON.stringify({ access_token: accessToken }),
         })
-          .then((data) => handleAuthResponse(data, true))
-          .catch((err) => fail(err.message))
+          .then((data) => {
+            if (data.needs_email) {
+              setFacebookAccessToken(accessToken);
+              setEmail(data.email || "");
+              setMode("facebook-email");
+              setInfo(data.message || "Confirm an email address for appointment reminders.");
+              return;
+            }
+            handleAuthResponse(data, true);
+          })
+          .catch((err) => handleAuthError(err, true))
           .finally(() => setSocialLoading(""));
       },
       { scope: "public_profile,email" }
@@ -257,6 +278,34 @@ export default function SignIn() {
     setError("");
     setInfo("");
 
+    if (mode === "facebook-email") {
+      if (!email.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
+        return fail("Enter a valid email address for appointment reminders.");
+      }
+      if (!facebookAccessToken) {
+        setMode("signin");
+        return fail("Facebook sign-in expired. Please try again.");
+      }
+
+      setLoading(true);
+      try {
+        const data = await apiFetch("/auth/facebook/email", {
+          method: "POST",
+          body: JSON.stringify({
+            access_token: facebookAccessToken,
+            email: email.trim(),
+          }),
+        });
+        setFacebookAccessToken("");
+        handleAuthResponse(data, true);
+      } catch (err) {
+        handleAuthError(err, true);
+      } finally {
+        setLoading(false);
+      }
+      return;
+    }
+
     if (mode === "verify") {
       if (!/^\d{6}$/.test(code.trim())) return fail("Enter the 6-digit code from your email.");
       setLoading(true);
@@ -265,7 +314,7 @@ export default function SignIn() {
           method: "POST",
           body: JSON.stringify({ email: verifyEmail, code: code.trim() }),
         });
-        finish(data, true);
+        finish(data, verifyRemember);
       } catch (err) {
         fail(err.message);
       } finally {
@@ -305,7 +354,7 @@ export default function SignIn() {
         });
         handleAuthResponse(data, true);
       } catch (err) {
-        fail(err.message);
+        handleAuthError(err, true);
       } finally {
         setLoading(false);
       }
@@ -322,9 +371,7 @@ export default function SignIn() {
       });
       handleAuthResponse(data, remember);
     } catch (err) {
-      // Backend can also answer 403 with { needs_verification: true, email } -> apiFetch should throw;
-      // if you want that flow here, check err.data?.needs_verification and call handleAuthResponse(err.data).
-      fail(err.message);
+      handleAuthError(err, remember);
     } finally {
       setLoading(false);
     }
@@ -417,7 +464,9 @@ export default function SignIn() {
                   ? "Reset password"
                   : mode === "verify"
                     ? "Verify your email"
-                    : "Sign In"}
+                        : mode === "facebook-email"
+                          ? "Confirm your reminder email"
+                        : "Sign In"}
             </h2>
             <p className="mt-1 text-sm text-[#666]">
               {mode === "signup"
@@ -426,6 +475,8 @@ export default function SignIn() {
                   ? "Enter your email to receive reset instructions."
                   : mode === "verify"
                     ? "For your security, confirm your email address to finish signing in."
+                    : mode === "facebook-email"
+                      ? "Confirm or enter the email address where we can send appointment reminders. We’ll send a code to verify you can receive messages there."
                     : "Use the email and password you registered with."}
             </p>
 
@@ -488,6 +539,23 @@ export default function SignIn() {
                     autoComplete="one-time-code"
                     placeholder="••••••"
                     maxLength={6}
+                    autoFocus
+                  />
+                </label>
+              ) : mode === "facebook-email" ? (
+                <label className="text-xs font-bold tracking-[0.08em] text-[#666]">
+                  EMAIL FOR APPOINTMENT REMINDERS
+                  <input
+                    type="email"
+                    className={inputClass}
+                    value={email}
+                    onChange={(e) => {
+                      setEmail(e.target.value);
+                      setError("");
+                    }}
+                    autoComplete="email"
+                    placeholder="you@email.com"
+                    required
                     autoFocus
                   />
                 </label>
@@ -641,9 +709,26 @@ export default function SignIn() {
                       ? "Send reset link"
                       : mode === "verify"
                         ? "Verify & continue"
+                        : mode === "facebook-email"
+                          ? "Send verification code"
                         : "Sign in"}
               </button>
             </form>
+
+            {mode === "facebook-email" && (
+              <button
+                type="button"
+                className="mt-4 w-full border-0 bg-transparent p-0 text-sm text-tf-teal underline cursor-pointer"
+                onClick={() => {
+                  setFacebookAccessToken("");
+                  setMode("signin");
+                  setError("");
+                  setInfo("");
+                }}
+              >
+                Cancel Facebook sign-in
+              </button>
+            )}
 
             {mode === "verify" && (
               <div className="mt-4 flex flex-col gap-3">

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { apiFetch, logout } from "../auth";
+import { apiFetch, getFullName, getToken, logout } from "../auth";
 
 const ROLE_LABEL = { CLIENT: "Client", AFFILIATE: "Affiliate", ADMIN: "Admin" };
 const ROLE_HOME = {
@@ -50,22 +50,37 @@ export function Avatar({ user, size = 40, className = "" }) {
 // --- Default Export: ProfileMenu ---
 export default function ProfileMenu({ size = 40 }) {
   const [user, setUser] = useState(null);
-  const [loaded, setLoaded] = useState(false);
+  const [loaded, setLoaded] = useState(() => !getToken());
   const [open, setOpen] = useState(false);
   const boxRef = useRef(null);
   const navigate = useNavigate();
 
   useEffect(() => {
     let alive = true;
-    apiFetch("/profile")
-      .then((d) => alive && setUser(d.user))
-      .catch(() => alive && setUser(null))
-      .finally(() => alive && setLoaded(true));
+    const loadProfile = (authChanged = false) => {
+      if (!getToken()) {
+        if (authChanged) {
+          setUser(null);
+          setLoaded(true);
+        }
+        return;
+      }
+
+      apiFetch("/profile")
+        .then((d) => alive && setUser(d.user))
+        .catch(() => alive && setUser(null))
+        .finally(() => alive && setLoaded(true));
+    };
+
+    loadProfile();
 
     const onUpdate = (e) => setUser(e.detail);
+    const onAuthChange = () => loadProfile(true);
+    window.addEventListener("tf-auth-change", onAuthChange);
     window.addEventListener("tf-profile-updated", onUpdate);
     return () => {
       alive = false;
+      window.removeEventListener("tf-auth-change", onAuthChange);
       window.removeEventListener("tf-profile-updated", onUpdate);
     };
   }, []);
@@ -125,7 +140,7 @@ export default function ProfileMenu({ size = 40 }) {
             <Avatar user={user} size={52} />
             <div className="min-w-0">
               <div className="truncate font-serif text-base font-bold text-[#202020]">
-                {user.first_name} {user.last_name}
+                {getFullName(user)}
               </div>
               <div className="truncate text-xs text-[#666]">{displayEmail(user)}</div>
               <span className="mt-1 inline-block rounded-full bg-tf-soft px-2.5 py-0.5 text-[11px] font-bold text-tf-teal">
