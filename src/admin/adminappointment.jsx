@@ -42,7 +42,12 @@ const FILTERS = [
 const FINISHED = ["completed", "declined", "cancelled"];
 
 // Oras kung kailan natapos ang session (local time ng browser)
-const endsAt = (a) => new Date(`${a.date}T${a.end_time}`);
+const endsAt = (a) => new Date(`${a.date}T${a.end_time}:00+08:00`);
+const isAppointmentInProgress = (a, now) => {
+    const start = new Date(`${a.date}T${a.start_time}:00+08:00`);
+    const end = endsAt(a);
+    return now >= start && now < end;
+};
 
 // Approved na pero lagpas na ang end time = tapos na ang session
 const isEnded = (a, now) => {
@@ -184,7 +189,7 @@ const StatusChip = ({ s, className = "" }) => (
     </span>
 );
 
-const AppointmentCard = ({ a, open, onToggle, busy, onApprove, onVerify, onViewConsent, onJoinCall }) => {
+const AppointmentCard = ({ a, open, onToggle, busy, onApprove, onVerify, onViewConsent, onJoinCall, now }) => {
     const s = STATUS[a.state] || STATUS.pending;
     const d = new Date(a.date + "T00:00");
 
@@ -250,12 +255,13 @@ const AppointmentCard = ({ a, open, onToggle, busy, onApprove, onVerify, onViewC
                     )}
                     <MessageBtn />
 
-                    {/* VIDEO CALL BUTTON PARA SA ADMIN - LALABAS KAPAG APPROVED */}
-                    {a.state === "approved" && (
+                    {a.service_id === "psychotherapy" && a.state === "approved" && (
                         <button
                             type="button"
+                            disabled={!isAppointmentInProgress(a, now)}
                             onClick={() => onJoinCall(a.id)}
-                            className={`${serif} h-[26px] cursor-pointer rounded-[5px] border-0 bg-[#2f4a42] px-[12px] text-[11px] text-white hover:bg-[#20352f]`}
+                            className={`${serif} h-[26px] cursor-pointer rounded-[5px] border-0 bg-[#2f4a42] px-[12px] text-[11px] text-white hover:bg-[#20352f] disabled:cursor-not-allowed disabled:opacity-50`}
+                            title={isAppointmentInProgress(a, now) ? "Join the appointment" : "Available during the scheduled appointment time"}
                         >
                             Join Video Call
                         </button>
@@ -352,10 +358,10 @@ export default function AdminAppointment() {
 
     // State para sa Video Call
     const [inCall, setInCall] = useState(false);
-    const [callChannel, setCallChannel] = useState("");
+    const [callAppointmentId, setCallAppointmentId] = useState(null);
 
     useEffect(() => {
-        const t = setInterval(() => setNow(new Date()), 30000);
+        const t = setInterval(() => setNow(new Date()), 1000);
         return () => clearInterval(t);
     }, []);
 
@@ -471,7 +477,7 @@ export default function AdminAppointment() {
     const busyLoading = loading || (filter === "history" && historyLoading);
 
     const handleJoinCall = (id) => {
-        setCallChannel(`appointment-${id}`);
+        setCallAppointmentId(id);
         setInCall(true);
     };
 
@@ -580,6 +586,7 @@ export default function AdminAppointment() {
                                         onVerify={() => navigate(PAYMENT_PATH)}
                                         onViewConsent={() => setViewing(a)}
                                         onJoinCall={handleJoinCall} // <-- IPINASA ANG FUNCTION
+                                        now={now}
                                     />
                                 ))}
                             </div>
@@ -605,7 +612,7 @@ export default function AdminAppointment() {
             {/* KAPAG PININDOT ANG VIDEO CALL BUTTON NG ADMIN, LALABAS ITO */}
             {inCall && (
                 <VideoCall
-                    channelName={callChannel}
+                    appointmentId={callAppointmentId}
                     onLeave={() => setInCall(false)}
                 />
             )}

@@ -30,6 +30,11 @@ const MESSAGES = {
 
 const BALANCE_ROUTE = (id) => `/appointments/balance/${id}`;
 const BALANCE_PAYABLE = ["Confirmed", "Pending approval", "Completed"];
+const isAppointmentInProgress = (appointment, now) => {
+  const start = new Date(`${appointment.date}T${appointment.start_time}:00+08:00`);
+  const end = new Date(`${appointment.date}T${appointment.end_time}:00+08:00`);
+  return now >= start && now < end;
+};
 const toItem = (a) => {
   const provider = getServiceProviderDisplay(a.service_id, a.service_name, a.psychologist);
   const start = new Date(`${a.date}T${a.start_time}:00`);
@@ -192,7 +197,8 @@ export default function MyAppointments() {
   
   // State para sa Video Call
   const [inCall, setInCall] = useState(false);
-  const [callChannel, setCallChannel] = useState("");
+  const [callAppointmentId, setCallAppointmentId] = useState(null);
+  const [callNow, setCallNow] = useState(() => new Date());
 
   const load = () =>
     apiFetch("/my-appointments")
@@ -214,6 +220,11 @@ export default function MyAppointments() {
   useEffect(() => {
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    const timer = setInterval(() => setCallNow(new Date()), 1000);
+    return () => clearInterval(timer);
   }, []);
 
   const filtered = useMemo(() => items.filter((a) => a.tab === tab), [items, tab]);
@@ -375,16 +386,20 @@ export default function MyAppointments() {
                     <div className="flex flex-col items-center gap-4 md:items-end">
                       <Countdown target={next.target} />
                       
-                      {/* VIDEO CALL BUTTON PARA SA NEXT SESSION */}
-                      <button
-                        onClick={() => {
-                          setCallChannel(`appointment-${next.id}`);
-                          setInCall(true);
-                        }}
-                        className="bg-green-600 hover:bg-green-500 text-white font-bold py-2 px-6 rounded-lg shadow transition"
-                      >
-                        Join Video Call
-                      </button>
+                      {next.raw?.service_id === "psychotherapy" && next.status === "Confirmed" && (
+                        <button
+                          type="button"
+                          disabled={!isAppointmentInProgress(next.raw, callNow)}
+                          onClick={() => {
+                            setCallAppointmentId(next.raw.id);
+                            setInCall(true);
+                          }}
+                          className="bg-green-600 hover:bg-green-500 text-white font-bold py-2 px-6 rounded-lg shadow transition disabled:cursor-not-allowed disabled:opacity-50"
+                          title={isAppointmentInProgress(next.raw, callNow) ? "Join your appointment" : "Available during the scheduled appointment time"}
+                        >
+                          Join Video Call
+                        </button>
+                      )}
                       {next.canPayBalance && (
                       <Link
                         to={BALANCE_ROUTE(next.id)}
@@ -629,7 +644,7 @@ export default function MyAppointments() {
       {/* KAPAG PININDOT ANG VIDEO CALL BUTTON, LALABAS ITO */}
       {inCall && (
         <VideoCall 
-          channelName={callChannel} 
+          appointmentId={callAppointmentId}
           onLeave={() => setInCall(false)} 
         />
       )}

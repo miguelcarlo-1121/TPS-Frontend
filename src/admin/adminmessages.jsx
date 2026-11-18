@@ -3,10 +3,9 @@ import { useSearchParams } from "react-router-dom";
 import AdminNavigation from "./adminnavigation";
 import { apiFetch, getUser } from "../auth";
 import echo from "../echo";
-import { Search, Send, MessageSquare, Phone, Video } from "lucide-react"; // Idinagdag ang Phone at Video icons
+import { Search, Send, MessageSquare, Phone } from "lucide-react";
 import { Photo } from "../components/Layout";
 import ProfileMenu from "../components/ProfileMenu";
-import VideoCall from "../components/VideoCall";
 import SkeletonBlock from "../components/SkeletonBlock";
 
 const avatarWrap = "size-11 shrink-0 overflow-hidden rounded-full bg-[#aac6b7]";
@@ -29,10 +28,6 @@ export default function AdminMessages() {
   const [searchQuery, setSearchQuery] = useState("");
   const messagesEndRef = useRef(null);
   const currentUser = getUser();
-
-  // State para sa Video Call
-  const [inCall, setInCall] = useState(false);
-  const [callChannel, setCallChannel] = useState("");
 
   // 1. Kunin lahat ng users
   useEffect(() => {
@@ -176,7 +171,7 @@ export default function AdminMessages() {
                   </div>
                 </div>
 
-                {/* CALL & VIDEO BUTTONS */}
+                {/* Phone calls remain available from the contact's phone number. */}
                 <div className="flex items-center gap-2">
                   {active.phone && (
                     <a
@@ -187,16 +182,6 @@ export default function AdminMessages() {
                       <Phone size={20} />
                     </a>
                   )}
-                  <button
-                    onClick={() => {
-                        setCallChannel(`appointment-${active.id}`); // Gagamit tayo ng ID para sa channel
-                        setInCall(true);
-                    }}
-                    className="p-2 text-tf-teal hover:bg-tf-teal/10 rounded-full transition-colors"
-                    title="Video Call"
-                  >
-                    <Video size={20} />
-                  </button>
                 </div>
               </header>
 
@@ -275,13 +260,6 @@ export default function AdminMessages() {
         </div>
       </main>
 
-      {/* VIDEO CALL OVERLAY */}
-      {inCall && (
-        <VideoCall 
-          channelName={callChannel} 
-          onLeave={() => setInCall(false)} 
-        />
-      )}
     </div>
   );
 }

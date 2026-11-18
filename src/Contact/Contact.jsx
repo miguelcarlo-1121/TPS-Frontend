@@ -11,8 +11,7 @@ import {
 import { CLINIC } from "../data/clinic";
 import { apiFetch, getUser } from "../auth";
 import echo from "../echo";
-import { Search, Plus, X, Phone, Video } from "lucide-react"; 
-import VideoCall from "../components/VideoCall"; // Import VideoCall
+import { Search, Plus, X, Phone } from "lucide-react";
 import SkeletonBlock from "../components/SkeletonBlock";
 
 const avatarWrap = "size-11 shrink-0 overflow-hidden rounded-full bg-[#aac6b7]";
@@ -37,10 +36,6 @@ export default function Contact() {
   // Modal State
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
-
-  // Video Call State
-  const [inCall, setInCall] = useState(false);
-  const [callChannel, setCallChannel] = useState("");
 
   const messagesEndRef = useRef(null);
 
@@ -225,16 +220,6 @@ export default function Contact() {
                           <Phone size={20} />
                         </a>
                       )}
-                      <button
-                        onClick={() => {
-                            setCallChannel(`appointment-${active.id}`); 
-                            setInCall(true);
-                        }}
-                        className="p-2 text-tf-teal hover:bg-tf-teal/10 rounded-full transition-colors"
-                        title="Video Call"
-                      >
-                        <Video size={20} />
-                      </button>
                     </div>
                   </header>
 
@@ -371,13 +356,6 @@ export default function Contact() {
         </div>
       )}
 
-      {/* VIDEO CALL OVERLAY */}
-      {inCall && (
-        <VideoCall 
-          channelName={callChannel} 
-          onLeave={() => setInCall(false)} 
-        />
-      )}
     </div>
   );
 }

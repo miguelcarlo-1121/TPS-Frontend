@@ -31,7 +31,7 @@ function LocalVideo({ track }) {
   return <div ref={ref} className="h-full w-full object-cover scale-x-[-1]" />;
 }
 
-function CallUI({ channelName, onLeave }) {
+function CallUI({ appointmentId, onLeave }) {
   const [calling, setCalling] = useState(false);
   const [tokenData, setTokenData] = useState(null);
   const [isMuted, setIsMuted] = useState(false);
@@ -48,7 +48,7 @@ function CallUI({ channelName, onLeave }) {
     tokenData
       ? {
           appid: tokenData.appId,
-          channel: channelName,
+          channel: tokenData.channelName,
           token: tokenData.token,
           uid: tokenData.uid,
         }
@@ -62,7 +62,7 @@ function CallUI({ channelName, onLeave }) {
     try {
       const data = await apiFetch("/agora/token", {
         method: "POST",
-        body: JSON.stringify({ channelName }),
+        body: JSON.stringify({ appointment_id: appointmentId }),
       });
       setTokenData(data);
       setCalling(true);
@@ -121,7 +121,7 @@ function CallUI({ channelName, onLeave }) {
           <div className="flex items-center gap-2">
              <Shield size={18} className="text-green-400" />
              <h2 className="text-sm sm:text-base font-medium tracking-wide truncate max-w-[200px] sm:max-w-md">
-               {channelName.replace("-", " ").toUpperCase()}
+               {tokenData?.channelName?.replace("-", " ").toUpperCase()}
              </h2>
           </div>
         </div>
