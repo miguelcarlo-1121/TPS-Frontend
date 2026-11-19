@@ -59,6 +59,8 @@ const ACTION_COLORS = {
   account_updated: "bg-indigo-100 text-indigo-700 border-indigo-200",
   account_status_changed: "bg-amber-100 text-amber-800 border-amber-200",
   account_deleted: "bg-red-100 text-red-700 border-red-200",
+  backup_created: "bg-teal-100 text-teal-800 border-teal-200",
+  backup_restored: "bg-orange-100 text-orange-800 border-orange-200",
 };
 
 const CATEGORIES = [
@@ -68,6 +70,7 @@ const CATEGORIES = [
   { id: "schedule", label: "Schedules" },
   { id: "service", label: "Services & Assessments" },
   { id: "account", label: "Accounts" },
+  { id: "backup", label: "Backups" },
 ];
 
 const ROLES = [
